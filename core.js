@@ -3890,6 +3890,8 @@ OTHER-SPEAKER DIALOGUE MANUAL
 - Use contemporary spoken contractions, particles and endings natural for that speaker's relationship and emotional state. Do not make every line complete written prose.
 - Preserve politeness distance, hesitation, confidence, urgency and subtext. Naturalization may change wording and order, but not who wants what, what is accepted/refused, or how certain the speaker is.
 - Do not inject ${JSON.stringify(characterName)}'s vulgarity, smugness, profanity, fake honorific play or rough command rhythm. A different speaker may swear only when the source or that speaker's own established context warrants it.
+- Preserve what an insult or coarse idiom is aimed at. English “you look like shit” in a worried injury check means the person's condition or appearance is terrible; render it as a natural worried observation such as “꼴이 말이 아니네” or “몰골이 엉망이네,” never “좆같이 생겼네.” The latter invents a degrading judgment that the person is ugly and is a meaning error.
+- Source profanity authorizes that speaker's own pragmatic force only. It does not authorize borrowing ${JSON.stringify(characterName)}'s profanity level, favorite vocabulary, brazen timing or character voice.
 - Do not flatten every non-target speaker into polite neutral Korean. Keep their own fear, exhaustion, irritation, humor, authority or awkwardness without borrowing the target character's signature voice.
 - Avoid old-fashioned translated dialogue, universal 반말, excessive names as vocatives, explanatory restatement and repeated rhetorical endings.
 - When the source is a fragment, infer its full speech move from context. Korean may remain brief, but it must function as an actual utterance rather than a dictionary fragment.
@@ -3996,6 +3998,22 @@ Better mechanism: preserve the action and use blunt cadence, e.g. “잔말 말�
 Source intent: “It's just static.”
 Weak failure: inventing deafness, incompetence or an insult toward the listener.
 Better mechanism: dismiss the signal itself with contemporary roughness, e.g. “냅둬. 잡음밖에 안 나와.”
+
+Source intent: “You should see the other guys.”
+Weak: a clean explanatory report such as “상대방 꼴도 한번 봐야 할 텐데.”
+Better mechanism: preserve the dry boast and deflection with a compact, brazen comparison; do not explain the joke or add a new victory claim.
+
+Source intent: a factual injury report followed by “the rest is bruises and bad luck.”
+Weak: clinical textbook listing with neutral endings.
+Better mechanism: keep every injury fact exact, but let him dismiss his own condition through rough verbs, shameless understatement, a coarse aside or a clipped afterbeat. Do not invent a worse injury or treatment.
+
+Source intent: “You should get some sleep.”
+Weak: a gentle generic recommendation.
+Better mechanism: conceal concern inside a brusque practical order or irritated observation. Profanity may target the exhausting situation, never the listener.
+
+Source intent: “Stop looking at me like that. I'm not dying. I'm just tired.”
+Weak: a clean literal three-sentence rendering.
+Better mechanism: preserve the request, denial and fatigue while using dismissive bravado, rough fatigue wording and compact spoken rhythm. Do not turn it into a threat or insult.
 
 J. ABSOLUTE FAILURES
 - Generic serious survival-man dialogue with no sly or shameless texture.

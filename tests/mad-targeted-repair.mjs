@@ -133,7 +133,7 @@ const identityHelpers = Function(
     'repairCanonicalKoreanVocatives',
     'repairIndivisibleIdentityNames',
     'madKoreanExclusiveMode',
-    `${index.slice(identityStart, identityEnd)}\nreturn {canonicalKoreanIdentityNames, repairOutputIdentityNames};`,
+    `${index.slice(identityStart, identityEnd)}\nreturn {canonicalKoreanIdentityNames, repairOutputIdentityNames, repairStrictCanonicalIdentityNames};`,
 )(repairCanonicalKoreanNameSuffixes, repairCanonicalKoreanVocatives, value => value, () => true);
 const fullIdentity = { userName: '혜담은', characterName: '김홍진' };
 assert.deepEqual(identityHelpers.canonicalKoreanIdentityNames(fullIdentity), ['혜담은', '담은', '김홍진', '홍진']);
@@ -159,6 +159,10 @@ assert.equal(
 );
 assert.equal(
     identityHelpers.repairOutputIdentityNames('농담은이 먹히지 않았다. 부담은이 컸고 상담은은 끝났다.', fullIdentity, { type: 'narration' }),
+    '농담은 먹히지 않았다. 부담은 컸고 상담은 끝났다.',
+);
+assert.equal(
+    identityHelpers.repairStrictCanonicalIdentityNames('농담은이 먹히지 않았다. 부담은이 컸고 상담은은 끝났다.', fullIdentity),
     '농담은 먹히지 않았다. 부담은 컸고 상담은 끝났다.',
 );
 

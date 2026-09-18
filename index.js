@@ -52,7 +52,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.112';
+const EXTENSION_VERSION = '0.5.113';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -3853,7 +3853,8 @@ function canonicalKoreanIdentityNames(speakerIdentity = {}) {
 }
 
 function repairStrictCanonicalIdentityNames(value, speakerIdentity = {}) {
-    return repairCanonicalKoreanNameSuffixes(value, canonicalKoreanIdentityNames(speakerIdentity));
+    const collisionRepaired = repairEmbeddedIdentityWordCollisions(value, speakerIdentity);
+    return repairCanonicalKoreanNameSuffixes(collisionRepaired, canonicalKoreanIdentityNames(speakerIdentity));
 }
 
 function repairOutputIdentityNames(value, speakerIdentity = {}, sourceSegment = {}, nameTokens = []) {
@@ -4012,8 +4013,12 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
     // name such as 김홍진 may appear romanized as Hong-jin in the source. Run
     // the classifier whenever any dialogue remains unconfirmed so the voice
     // pass cannot silently receive zero candidates.
+    const hasLocallyConfirmedTarget = dialogueSegments.some(
+        segment => localScopes[segment.id] === 'target_dialogue',
+    );
     const needsHongjinAttribution = madKoreanExclusiveMode()
         && settings.developerHongjinFlavorEnabled === true
+        && !hasLocallyConfirmedTarget
         && dialogueSegments.some(segment => scopes[segment.id] !== 'target_dialogue');
     const needsSpeakerIsolation = needsHongjinAttribution || Boolean(
         !madKoreanExclusiveMode() && (
@@ -4771,6 +4776,14 @@ async function runMadKoreanIntegratedRewrite({
 }) {
     if (!madKoreanExclusiveMode()) {
         return { checked: 0, changed: 0 };
+    }
+
+    // Mad Korean + Hong-jin is already authored in four hard-isolated scopes
+    // during the primary pass. A second mixed-scope rewrite was slower and let
+    // target profanity leak into USER/NPC dialogue, so never recombine those
+    // scopes. Mad Korean without the character flavor may still use this pass.
+    if (settings.developerHongjinFlavorEnabled === true) {
+        return { checked: 0, changed: 0, skipped: 'scope-isolated-primary-pass' };
     }
 
     const candidates = (segmented.segments || []).map(segment => ({

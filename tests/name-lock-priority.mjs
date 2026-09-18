@@ -118,4 +118,5 @@ const indexSource = fs.readFileSync(new URL('../index.js',import.meta.url),'utf8
 check(indexSource.includes('}, normalizedCharacterNameLocks(character));'), 'runtime passes character locks into output identity');
 check(indexSource.includes("stage: 'identity-name-fallback'"), 'runtime has cached fallback name planning stage');
 check(indexSource.includes('mergedNameLocks(explicitNameLocks, inferredNameLocks)'), 'saved name locks are merged before inferred names');
+check(indexSource.includes('const collisionRepaired = repairEmbeddedIdentityWordCollisions(value, speakerIdentity);'), 'final strict name repair always fixes embedded common-word collisions');
 console.log(`Name-lock routing: PASS (${checks} checks plus identity/restoration assertions; no live AI calls)`);
