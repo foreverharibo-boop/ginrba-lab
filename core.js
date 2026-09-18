@@ -4103,6 +4103,31 @@ export function buildMadFlashV2ScopedPrompt({
 - 오빠 self-reference: ${oppa}; only when male ${characterName} speaks directly and exclusively to USER ${userName}, never toward an NPC/group or as second-person address.
 ${madFlashV2HongjinManual({ characterName, userName, profanity: settings.developerHongjinProfanity || 'natural' })}`;
     })() : '';
+    const immediateGate = scope === 'target_dialogue'
+        ? `FINAL EXECUTION GATE — THIS OVERRIDES ANY BLAND DEFAULT
+- These rows are ONLY ${JSON.stringify(characterName)}'s speech. Do not translate sentence by sentence. Extract the proposition, erase the English line, then author what he would actually say.
+- A clean factual line with ordinary endings FAILS even if semantically correct. A clean line with one detachable curse also FAILS. His verbs, contractions, particles, information order, shameless minimization, rough afterbeat and profanity-shaped rhythm must carry the voice.
+- Injury/exhaustion does not make him clinical or polite. Concern does not make him gentle. Seriousness suppresses forced jokes, NOT roughness, profanity or brazen understatement.
+- At HIGH profanity, every compatible row must visibly contain an integrated coarse mechanism; across multiple rows, most must contain explicit contemporary profanity or a vulgar construction. Rotate mechanisms instead of repeating one word.
+- Calibrate from these mechanisms, preserving the actual source facts:
+  · dry deflection/boast: “저 새끼들 꼬라지를 봤어야 되는데.”
+  · dismissive injury report: “어깨 빠진 거 도로 처맞췄고, 눈썹 위는 꿰맸어. 나머진 뭐, 멍 좀 들고 재수가 좆같았던 거지.”
+  · concealed concern as order: “너도 좀 처자. 밤 꼴딱 샌 건 똑같잖아.”
+  · exhausted bravado: “그만 좀 꼬라봐. 안 뒈져. 피곤해 뒤질 것 같아서 그렇지.”
+- These are calibration examples, not mandatory fixed translations. Never add facts or reuse wording when the source intent differs.
+- Before returning, inspect EVERY row. If it could be spoken by a generic clean survival-fiction man, rewrite it again.`
+        : scope === 'other_dialogue'
+            ? `FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE
+- These rows are NOT spoken by ${JSON.stringify(characterName)}. Zero target-character swagger, profanity density, vulgar verbs, shameless timing or rough afterbeats may leak here.
+- Translate each speaker's actual pragmatic intent, not the dictionary profanity. In a worried injury check, “you look like shit” means “꼴이 말이 아니네” / “몰골이 엉망이네.” “좆됐네, 꼴이” and “좆같이 생겼네” FAIL because they import the wrong voice and distort the meaning.
+- A source swear word does not authorize upgrading this speaker to the target's HIGH profanity setting. If a line sounds like ${JSON.stringify(characterName)}, rewrite it in that speaker's own register before returning.`
+            : scope === 'narration'
+                ? `FINAL KOREAN-PROSE GATE — REJECT CALQUES BEFORE OUTPUT
+- Do not submit a sentence merely because it is grammatical. Rebuild any line containing translation-shaped combinations such as “눈이 어둠에 적응하도록 두었다,” “부츠가 낮은 소리를 냈다,” “깊고 갈리는 피로,” “차가운 물이 뼈에 고였다,” or “말이 공기 속에 매달렸다.”
+- Use the ordinary Korean event directly: 눈이 어둠에 익다, 군화 소리가 흙바닥에 낮게 깔리다, 피로가 뼛속까지 파고들다. Preserve the image only when its Korean collocation remains natural.
+- Read every completed row aloud as original Korean fiction. If the English clause order or dictionary pairing is still visible, erase and rewrite the whole row.`
+                : `FINAL STRUCTURE GATE
+- Preserve protected structure exactly and translate only visible natural-language text. No character voice may enter metadata.`;
 
     return `MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION
 SCOPE: ${scopeName}
@@ -4135,6 +4160,8 @@ Return exactly:
 
 SOURCE CONTEXT — reference only
 ${JSON.stringify(boundReference(sourceContext, 30000))}
+
+${immediateGate}
 
 TARGETS
 ${JSON.stringify(payload)}`;

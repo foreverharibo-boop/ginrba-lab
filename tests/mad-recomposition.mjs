@@ -53,9 +53,24 @@ assert.match(target, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
 assert.doesNotMatch(other, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
 assert.match(target, /sly, shameless, playful/);
 assert.match(target, /original contemporary Korean speech/);
+assert.match(target, /FINAL EXECUTION GATE — THIS OVERRIDES ANY BLAND DEFAULT/);
+assert.match(target, /어깨 빠진 거 도로 처맞췄고/);
+assert.match(target, /generic clean survival-fiction man/);
+assert.match(other, /FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE/);
+assert.match(other, /“좆됐네, 꼴이” and “좆같이 생겼네” FAIL/);
+assert.match(narration, /FINAL KOREAN-PROSE GATE — REJECT CALQUES BEFORE OUTPUT/);
+assert.match(narration, /“깊고 갈리는 피로,”/);
+for (const [prompt, gate] of [
+    [narration, 'FINAL KOREAN-PROSE GATE'],
+    [target, 'FINAL EXECUTION GATE'],
+    [other, 'FINAL NON-TARGET FIREWALL'],
+]) {
+    assert.ok(prompt.indexOf('SOURCE CONTEXT — reference only') < prompt.indexOf(gate));
+    assert.ok(prompt.indexOf(gate) < prompt.indexOf('TARGETS'));
+}
 
 const off = core.buildOutputPrompt(segmented, { ...settings, developerMadKoreanOutputEnabled: false }, '', identity);
 assert.doesNotMatch(off, /SHORT MANDATORY KOREAN REAUTHORING CONTRACT/);
 assert.doesNotMatch(core.buildInputPrompt('안녕', settings, 'male', identity), /SHORT MANDATORY KOREAN REAUTHORING CONTRACT/);
 
-console.log(`PASS: Flash-optimized Mad Korean recomposition contract, corruption audit, scoped narration/dialogue rules, and diverse Hongjin examples (${checks + 14} checks).`);
+console.log(`PASS: Flash-optimized Mad Korean recomposition contract, corruption audit, scoped narration/dialogue rules, and near-data execution gates (${checks + 23} checks).`);
