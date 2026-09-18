@@ -79,6 +79,7 @@ for (const mode of [
             speakerIdentity: identity,
             candidateCount: 3,
             contextMode: 'selection',
+            speakerScope: 'target_dialogue',
         });
         assertGateAfter(selection, 'RIGHT', `selection/${JSON.stringify(mode)}/${mad}`, /NATURAL profanity is a positive requirement/);
 
@@ -91,6 +92,7 @@ for (const mode of [
                 sourceContext: '"Move. Now."',
                 start: firstStart,
                 end: firstEnd,
+                speakerScope: 'target_dialogue',
             }],
             settings,
             oneTimeInstruction: '',

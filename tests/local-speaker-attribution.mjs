@@ -97,4 +97,46 @@ const index = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 assert.match(index, /inferLocalTargetDialogueScopes\(segmented, speakerIdentity\)/);
 assert.match(index, /options\.tuning \|\| null,\s*speakerScopes,/s);
 
-console.log(`PASS: local protected-name, speech-tag and continuity attribution marks ${dialogueIds.length} Hong-jin lines without an API call and keeps USER/NPC dialogue isolated.`);
+const selectionResolverStart = index.indexOf('function selectionResolvedSpeakerScope(');
+const selectionResolverEnd = index.indexOf('function bundleStillCurrent(', selectionResolverStart);
+assert.ok(selectionResolverStart >= 0 && selectionResolverEnd > selectionResolverStart);
+const resolveSelectionScope = Function(
+    'selectionTouchesDialogue',
+    'normalizedCharacterNameLocks',
+    'segmentSource',
+    'inferLocalTargetDialogueScopes',
+    'selectionSourceRows',
+    `${index.slice(selectionResolverStart, selectionResolverEnd)}\nreturn selectionResolvedSpeakerScope;`,
+)(
+    (translationValue, startValue, endValue) => /["“][^"”]+["”]/u.test(String(translationValue).slice(startValue, endValue)),
+    () => locks,
+    segmentSource,
+    inferLocalTargetDialogueScopes,
+    snapshot => snapshot.sourceMap.filter(row => snapshot.start < row.end && snapshot.end > row.start),
+);
+
+const selectionSource = `Hong-jin entered. Dam-eun stood. "You look awful," she said. A medic approached. "Rest here," she said. Hong-jin frowned. "I'm fine," he said.`;
+const selectionSegments = segmentSource(selectionSource, locks);
+const dialogueSegmentsForSelection = selectionSegments.segments.filter(row => row.type === 'dialogue_candidate');
+assert.equal(dialogueSegmentsForSelection.length, 3);
+const renderedDialogue = ['"꼴이 말이 아니네."', '"여기서 쉬세요."', '"멀쩡해."'];
+let renderedTranslation = '';
+const selectionMap = dialogueSegmentsForSelection.map((row, indexValue) => {
+    const start = renderedTranslation.length;
+    renderedTranslation += renderedDialogue[indexValue];
+    const end = renderedTranslation.length;
+    renderedTranslation += '\n';
+    return { id: row.id, source: row.text, start, end };
+});
+const scopeAt = indexValue => resolveSelectionScope({
+    source: selectionSource,
+    translation: renderedTranslation,
+    start: selectionMap[indexValue].start,
+    end: selectionMap[indexValue].end,
+    sourceMap: selectionMap,
+}, identity);
+assert.equal(scopeAt(0), 'other_dialogue', 'Dam-eun selection must never receive Hong-jin voice');
+assert.equal(scopeAt(1), 'other_dialogue', 'medic selection must never receive Hong-jin voice');
+assert.equal(scopeAt(2), 'target_dialogue', 'Hong-jin selection must retain Hong-jin voice');
+
+console.log(`PASS: local attribution marks ${dialogueIds.length} Hong-jin lines and selection retranslation resolves Dam-eun/medic/Hong-jin scopes without an API call.`);

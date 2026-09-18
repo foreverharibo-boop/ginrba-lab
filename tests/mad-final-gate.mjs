@@ -95,13 +95,14 @@ for (const mode of [
             speakerIdentity: identity,
             candidateCount: 3,
             contextMode: 'selection',
+            speakerScope: 'target_dialogue',
         });
         assertMadGate(dialogueSelection, 'RIGHT', `selection-dialogue/${JSON.stringify(mode)}/${hongjin}`, { hongjin });
 
         const multi = core.buildMultiSelectionPrompt({
             source,
             translation: dialogueTranslation,
-            selections: [{ id: 'sel_0', selected: dialogueTranslation, sourceContext: '"Move. Now."', start: 0, end: dialogueTranslation.length }],
+            selections: [{ id: 'sel_0', selected: dialogueTranslation, sourceContext: '"Move. Now."', start: 0, end: dialogueTranslation.length, speakerScope: 'target_dialogue' }],
             settings,
             oneTimeInstruction: '',
             speakerIdentity: identity,

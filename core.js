@@ -3890,7 +3890,7 @@ OTHER-SPEAKER DIALOGUE MANUAL
 - Use contemporary spoken contractions, particles and endings natural for that speaker's relationship and emotional state. Do not make every line complete written prose.
 - Preserve politeness distance, hesitation, confidence, urgency and subtext. Naturalization may change wording and order, but not who wants what, what is accepted/refused, or how certain the speaker is.
 - Do not inject ${JSON.stringify(characterName)}'s vulgarity, smugness, profanity, fake honorific play or rough command rhythm. A different speaker may swear only when the source or that speaker's own established context warrants it.
-- Preserve what an insult or coarse idiom is aimed at. English “you look like shit” in a worried injury check means the person's condition or appearance is terrible; render it as a natural worried observation such as “꼴이 말이 아니네” or “몰골이 엉망이네,” never “좆같이 생겼네.” The latter invents a degrading judgment that the person is ugly and is a meaning error.
+- Preserve what an insult or coarse idiom is aimed at. English “you look like shit” in a worried injury check means the person's condition is terrible; render that pragmatic meaning with a natural worried observation such as “꼴이 말이 아니네” or “몰골이 엉망이네.” Do not upgrade concern into explicit obscenity, hostility or a judgment that the person is ugly.
 - Source profanity authorizes that speaker's own pragmatic force only. It does not authorize borrowing ${JSON.stringify(characterName)}'s profanity level, favorite vocabulary, brazen timing or character voice.
 - Do not flatten every non-target speaker into polite neutral Korean. Keep their own fear, exhaustion, irritation, humor, authority or awkwardness without borrowing the target character's signature voice.
 - Avoid old-fashioned translated dialogue, universal 반말, excessive names as vocatives, explanatory restatement and repeated rhetorical endings.
@@ -4119,12 +4119,12 @@ ${madFlashV2HongjinManual({ characterName, userName, profanity: settings.develop
         : scope === 'other_dialogue'
             ? `FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE
 - These rows are NOT spoken by ${JSON.stringify(characterName)}. Zero target-character swagger, profanity density, vulgar verbs, shameless timing or rough afterbeats may leak here.
-- Translate each speaker's actual pragmatic intent, not the dictionary profanity. In a worried injury check, “you look like shit” means “꼴이 말이 아니네” / “몰골이 엉망이네.” “좆됐네, 꼴이” and “좆같이 생겼네” FAIL because they import the wrong voice and distort the meaning.
+- Translate each speaker's actual pragmatic intent, not the dictionary profanity. In a worried injury check, “you look like shit” should become a condition-directed line such as “꼴이 말이 아니네” or “몰골이 엉망이네.” Keep it worried and awkward; do not turn it into explicit obscenity, appearance abuse or target-character swagger.
 - A source swear word does not authorize upgrading this speaker to the target's HIGH profanity setting. If a line sounds like ${JSON.stringify(characterName)}, rewrite it in that speaker's own register before returning.`
             : scope === 'narration'
                 ? `FINAL KOREAN-PROSE GATE — REJECT CALQUES BEFORE OUTPUT
-- Do not submit a sentence merely because it is grammatical. Rebuild any line containing translation-shaped combinations such as “눈이 어둠에 적응하도록 두었다,” “부츠가 낮은 소리를 냈다,” “깊고 갈리는 피로,” “차가운 물이 뼈에 고였다,” or “말이 공기 속에 매달렸다.”
-- Use the ordinary Korean event directly: 눈이 어둠에 익다, 군화 소리가 흙바닥에 낮게 깔리다, 피로가 뼛속까지 파고들다. Preserve the image only when its Korean collocation remains natural.
+- Build every image from a complete natural Korean collocation. Useful mechanisms include: 눈이 어둠에 익다; 군화가 흙바닥을 밟을 때마다 소리가 낮게 울리다; 피로가 뼛속까지 내려앉다; 뱉은 말이 둘 사이에 남다.
+- Never copy warning language or incomplete fragments. Keep the required noun with its predicate: the SOUND may spread or ring, not the boot itself; fatigue may settle or bore into the bones, but incompatible source adjectives must be discarded.
 - Read every completed row aloud as original Korean fiction. If the English clause order or dictionary pairing is still visible, erase and rewrite the whole row.`
                 : `FINAL STRUCTURE GATE
 - Preserve protected structure exactly and translate only visible natural-language text. No character voice may enter metadata.`;
@@ -5683,6 +5683,7 @@ export function buildSelectionPrompt({
     candidateCount = 1,
     contextMode = 'standard',
     tuning = null,
+    speakerScope = '',
 }) {
     const selectionOnly = contextMode === 'selection' || contextMode === 'narrow';
     const paragraphStart = translation.lastIndexOf('\n\n', Math.max(0, start - 1));
@@ -5708,9 +5709,12 @@ export function buildSelectionPrompt({
         ? boundReference(translation, contextMode === 'message' ? 20000 : 16000)
         : `${left}${selected}${right}`;
     const inDialogue = selectionTouchesDialogue(translation, start, end);
+    const resolvedScope = inDialogue
+        ? (speakerScope === 'target_dialogue' ? 'target_dialogue' : 'other_dialogue')
+        : 'narration';
     const madExclusive = madKoreanExclusiveEnabled(settings);
     const promptBaseline = madExclusive
-        ? madKoreanExclusiveRules(settings, inDialogue ? 'mixed' : 'narration', [], speakerIdentity)
+        ? madKoreanExclusiveRules(settings, resolvedScope, [], speakerIdentity)
         : `ABSOLUTE TRANSLATION BASELINE
 ${baseTranslationPrompt(settings, inDialogue ? 'mixed' : 'scoped')}${normalizeNameLocks(speakerIdentity.nameLocks).length ? `\n\n${nameTokenInstruction([], speakerIdentity)}` : ''}`;
     const configuredRules = madExclusive
@@ -5739,10 +5743,10 @@ ${developerCompressedPromptEnabled(settings) ? compactIdentityBlock(speakerIdent
         : '{"segments":[{"id":"seg_0000","translation":"replacement only"}]}';
     if (developerExtremeCompressedPromptEnabled(settings)) {
         return `E→K SELECTED-FRAGMENT REPLACEMENT — ULTRA
-${extremeOutputRules(settings, { oneTimeInstruction, scope: inDialogue ? 'dialogue_mixed' : 'narration', speakerIdentity, tuning })}
+${extremeOutputRules(settings, { oneTimeInstruction, scope: resolvedScope, speakerIdentity, tuning })}
 - Match SELECTED to ORIGINAL semantically and return only a new Korean replacement that joins LEFT/RIGHT naturally. Preserve meaning, referent, grammar role, tense, force, explicitness, formatting, tokens, and established terminology; do not echo the existing wording.
 ${multipleCandidates ? '- Return exactly 3 meaning-equivalent but naturally distinct candidates; vary wording/rhythm only.' : '- Return exactly 1 changed rendering.'}
-- ${inDialogue ? `This touches dialogue: preserve the actual speaker/voice.${madExclusive && settings?.developerHongjinFlavorEnabled === true ? ' Hongjin voice only if TARGET speaks.' : ''}` : 'This is narration; apply no dialogue-only voice.'}
+- CONFIRMED SCOPE=${resolvedScope}. ${resolvedScope === 'target_dialogue' ? 'Apply TARGET voice.' : resolvedScope === 'other_dialogue' ? 'This is USER/NPC/OTHER speech: prohibit TARGET voice and profanity settings.' : 'This is narration: apply no dialogue voice.'}
 Return exactly ${outputSchema}
 ORIGINAL ${JSON.stringify(boundReference(sourceReference))}
 EXISTING ${JSON.stringify(boundReference(translationReference))}
@@ -5763,9 +5767,12 @@ ${outputRule}
 - Match the Korean rendering already used in EXISTING KOREAN CONTEXT when the same source term has the same meaning. Do not introduce a different synonym without a genuine contextual meaning change.
 - Preserve macros, placeholders, code, URLs, and formatting.
 - Never use a configured banned Korean word.
+- CONFIRMED SELECTION SCOPE: ${resolvedScope}. This scope is already resolved by the extension; never reclassify it from writing style.
 - The selected fragment is ${madExclusive
         ? (inDialogue
-            ? `inside or touches dialogue. Preserve the actual speaker and voice from context.${settings?.developerHongjinFlavorEnabled === true ? ' Apply KIM HONG-JIN FLAVOR only if TARGET CHARACTER is actually speaking.' : ''}`
+            ? (resolvedScope === 'target_dialogue'
+                ? 'confirmed direct dialogue spoken by TARGET CHARACTER. Apply the configured TARGET voice.'
+                : 'confirmed USER/NPC/OTHER dialogue. Never apply KIM HONG-JIN FLAVOR, its profanity strength, vulgar verbs, swagger, teasing rhythm, or examples.')
             : 'narration. Preserve it as narration and do not apply KIM HONG-JIN FLAVOR.')
         : (inDialogue
             ? 'inside or touches dialogue. Always apply the all-dialogue prompt; infer its speaker from ORIGINAL SOURCE and additionally apply the target-character dialogue prompt only if TARGET CHARACTER is actually speaking.'
@@ -5793,7 +5800,7 @@ SELECTED KOREAN FRAGMENT
 ${JSON.stringify(selected)}
 
 RIGHT CONTEXT
-${JSON.stringify(right)}${deepSeekFinalOutputGates(settings, inDialogue ? 'dialogue_mixed' : 'narration')}`;
+${JSON.stringify(right)}${deepSeekFinalOutputGates(settings, resolvedScope)}`;
 }
 
 export function buildMultiSelectionPrompt({
@@ -5832,12 +5839,19 @@ export function buildMultiSelectionPrompt({
             left_context: left,
             right_context: right,
             in_dialogue: selectionTouchesDialogue(translation, start, end),
+            speaker_scope: selection.speakerScope === 'target_dialogue'
+                ? 'target_dialogue'
+                : selection.speakerScope === 'other_dialogue' ? 'other_dialogue' : 'narration',
         };
     });
     const hasDialogue = rows.some(row => row.in_dialogue);
+    const targetDialogueRows = rows.filter(row => row.speaker_scope === 'target_dialogue');
+    const safeBatchScope = targetDialogueRows.length === rows.length && rows.length
+        ? 'target_dialogue'
+        : rows.every(row => row.speaker_scope === 'narration') ? 'narration' : 'other_dialogue';
     const madExclusive = madKoreanExclusiveEnabled(settings);
     const promptBaseline = madExclusive
-        ? madKoreanExclusiveRules(settings, 'mixed', [], speakerIdentity)
+        ? madKoreanExclusiveRules(settings, safeBatchScope, [], speakerIdentity)
         : `ABSOLUTE TRANSLATION BASELINE
 ${baseTranslationPrompt(settings, 'mixed')}${normalizeNameLocks(speakerIdentity.nameLocks).length ? `\n\n${nameTokenInstruction([], speakerIdentity)}` : ''}`;
     const configuredRules = madExclusive
@@ -5857,9 +5871,9 @@ ${developerCompressedPromptEnabled(settings) ? compactIdentityBlock(speakerIdent
     });
     if (developerExtremeCompressedPromptEnabled(settings)) {
         return `E→K MULTI-SELECTION REPLACEMENT — ULTRA
-${extremeOutputRules(settings, { oneTimeInstruction, scope: 'mixed', speakerIdentity, tuning })}
+${extremeOutputRules(settings, { oneTimeInstruction, scope: safeBatchScope, speakerIdentity, tuning })}
 - Return one genuinely changed Korean replacement per id and nothing around it. Match each source context; preserve meaning, referent, grammar role, tense, force, explicitness, formatting/tokens, speaker/voice, and stable terms. Join each LEFT/RIGHT naturally; never echo selected_korean.
-- Rows with in_dialogue=true retain the actual speaker voice${madExclusive && settings?.developerHongjinFlavorEnabled === true ? ' and use Hongjin voice only for TARGET speech' : ''}; false rows remain narration. Output valid JSON only.
+- speaker_scope is already confirmed. TARGET voice applies only to target_dialogue; other_dialogue prohibits it; narration has no dialogue voice. Output valid JSON only.
 Return exactly ${schema}
 ${usesSharedMessageContext ? `SHARED SOURCE ${JSON.stringify(boundReference(source, 20000))}\nSHARED KOREAN ${JSON.stringify(boundReference(translation, 20000))}\n` : ''}SELECTIONS ${JSON.stringify(rows)}${deepSeekFinalOutputGates(settings, hasDialogue ? 'mixed' : 'narration')}`;
     }
@@ -5879,8 +5893,9 @@ ${madExclusive ? `- Under MAD KOREAN EXCLUSIVE ENGINE, do not merely swap synony
 - Preserve macros, placeholders, code, URLs, and formatting.
 - Never use a configured banned Korean word.
 ${madExclusive
-        ? `- For a row whose in_dialogue value is true, preserve the actual speaker and voice from context.${settings?.developerHongjinFlavorEnabled === true ? ' Apply KIM HONG-JIN FLAVOR only when TARGET CHARACTER is the speaker.' : ''}
-- For a row whose in_dialogue value is false, preserve it as narration and do not apply KIM HONG-JIN FLAVOR.`
+        ? `- speaker_scope is already resolved by the extension. Never infer or change it from the row's current wording.
+- Apply KIM HONG-JIN FLAVOR only to speaker_scope="target_dialogue". For speaker_scope="other_dialogue", prohibit all TARGET profanity strength, vulgar verbs, swagger and teasing rhythm. For speaker_scope="narration", prohibit every dialogue voice.
+- If this batch mixes scopes, the conservative shared baseline intentionally excludes TARGET voice; obey each row's speaker_scope and never spread style between rows.`
         : `- For a row whose in_dialogue value is true, apply the all-dialogue prompt and apply the target-character dialogue prompt only when TARGET CHARACTER is the speaker.
 - For a row whose in_dialogue value is false, do not apply either dialogue prompt.`}
 - Output valid JSON only and include every supplied id exactly once.

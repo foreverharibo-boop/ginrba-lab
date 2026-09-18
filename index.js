@@ -52,7 +52,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.114';
+const EXTENSION_VERSION = '0.5.116';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4068,10 +4068,15 @@ async function requestScopedGroupTranslations({
     segments,
     options,
 }) {
+    const requestedNarrationSplit = (
+        madKoreanExclusiveMode()
+        && settings.developerHongjinFlavorEnabled === true
+        && scope === 'narration'
+    ) ? outputSplitCount(settings) : 1;
     const madFlashChunks = (
         madKoreanExclusiveMode()
         && settings.developerHongjinFlavorEnabled === true
-    ) ? splitMadFlashScopeSegments(scope, segments) : [segments];
+    ) ? splitMadFlashScopeSegments(scope, segments, requestedNarrationSplit) : [segments];
 
     const buildPrompt = targetSegments => buildScopedOutputPrompt({
         segments: targetSegments,
@@ -4137,7 +4142,7 @@ async function requestScopedGroupTranslations({
     return new Map(chunkResults.flatMap(result => [...result]));
 }
 
-function splitMadFlashScopeSegments(scope, segments) {
+function splitMadFlashScopeSegments(scope, segments, requestedCount = 1) {
     const rows = Array.from(segments || []);
     if (!rows.length) return [];
     // V2 uses one coherent request per scope for ordinary long outputs. Split
@@ -4146,12 +4151,21 @@ function splitMadFlashScopeSegments(scope, segments) {
     const limits = scope === 'tagged_content'
         ? { count: 40, chars: 12000 }
         : { count: 60, chars: 16000 };
+    const desiredCount = scope === 'narration'
+        ? Math.max(1, Math.min(3, Number.parseInt(requestedCount, 10) || 1))
+        : 1;
+    const totalWeight = rows.reduce((sum, segment) => sum + String(segment?.text || '').length + 40, 0);
+    const balancedTarget = Math.max(1, Math.ceil(totalWeight / desiredCount));
     const chunks = [];
     let chunk = [];
     let chars = 0;
     for (const segment of rows) {
         const weight = String(segment?.text || '').length + 40;
-        if (chunk.length && (chunk.length >= limits.count || chars + weight > limits.chars)) {
+        const balancedBreak = desiredCount > 1
+            && chunks.length < desiredCount - 1
+            && chars > 0
+            && chars + weight > balancedTarget;
+        if (chunk.length && (balancedBreak || chunk.length >= limits.count || chars + weight > limits.chars)) {
             chunks.push(chunk);
             chunk = [];
             chars = 0;
@@ -8900,6 +8914,31 @@ function selectionSourceContext(snapshot, contextMode) {
     return rows.slice(first, last + 1).map(row => row.source).join('\n\n');
 }
 
+function selectionResolvedSpeakerScope(snapshot, speakerIdentity = {}) {
+    if (!snapshot || !selectionTouchesDialogue(snapshot.translation, snapshot.start, snapshot.end)) {
+        return 'narration';
+    }
+    const locks = Array.isArray(speakerIdentity.nameLocks) && speakerIdentity.nameLocks.length
+        ? speakerIdentity.nameLocks
+        : normalizedCharacterNameLocks();
+    const segmented = segmentSource(snapshot.source, locks);
+    const localScopes = inferLocalTargetDialogueScopes(segmented, speakerIdentity);
+    const sourceRows = selectionSourceRows(snapshot);
+    const touchedIds = new Set(sourceRows.map(row => String(row.id || '')));
+    let matched = (segmented.segments || []).filter(segment => (
+        segment.type === 'dialogue_candidate' && touchedIds.has(String(segment.id || ''))
+    ));
+    if (!matched.length) {
+        const sourceTexts = new Set(sourceRows.map(row => String(row.source || '').trim()).filter(Boolean));
+        matched = (segmented.segments || []).filter(segment => (
+            segment.type === 'dialogue_candidate' && sourceTexts.has(String(segment.text || '').trim())
+        ));
+    }
+    return matched.length && matched.every(segment => localScopes[segment.id] === 'target_dialogue')
+        ? 'target_dialogue'
+        : 'other_dialogue';
+}
+
 function bundleStillCurrent(state = multiSelectionState) {
     if (!state) return false;
     const message = liveContext().chat?.[state.messageId];
@@ -9089,6 +9128,7 @@ async function retranslateSelectionBundle() {
         ...range,
         id: `multi_${String(index).padStart(4, '0')}`,
         sourceContext: selectionSourceContext({ ...state, ...range }, contextMode),
+        speakerScope: selectionResolvedSpeakerScope({ ...state, ...range }, speakerIdentity),
     }));
     const expected = selections.map(row => ({ id: row.id, type: 'multi_selection', text: row.selected, ellipsisSource: selectionEllipsisReference({ ...state, ...row }) }));
     const prompt = buildMultiSelectionPrompt({
@@ -9325,12 +9365,13 @@ async function retranslateSelection(snapshot) {
         snapshot.start,
         snapshot.end,
     );
+    const speakerIdentity = await outputSpeakerIdentityForSource(snapshot.source, snapshot.message);
+    const selectionSpeakerScope = selectionResolvedSpeakerScope(snapshot, speakerIdentity);
     warnTranslationPromptConflicts({
         oneTimeInstruction: instruction,
         includeDialogue: selectionHasDialogue,
-        includeCharacterDialogue: selectionHasDialogue,
+        includeCharacterDialogue: selectionSpeakerScope === 'target_dialogue',
     });
-    const speakerIdentity = await outputSpeakerIdentityForSource(snapshot.source, snapshot.message);
 
     const controller = new AbortController();
     trackSelectionTranslation(controller);
@@ -9348,6 +9389,7 @@ async function retranslateSelection(snapshot) {
         contextMode,
         sourceContext: selectionSourceContext(snapshot, contextMode),
         tuning,
+        speakerScope: selectionSpeakerScope,
     });
     const expected = [{ id: 'seg_0000', type: 'selection', text: snapshot.selected, ellipsisSource: selectionEllipsisReference(snapshot) }];
     let toast = showProgress(candidateMode

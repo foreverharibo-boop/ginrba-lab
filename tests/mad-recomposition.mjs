@@ -57,9 +57,11 @@ assert.match(target, /FINAL EXECUTION GATE — THIS OVERRIDES ANY BLAND DEFAULT/
 assert.match(target, /어깨 빠진 거 도로 처맞췄고/);
 assert.match(target, /generic clean survival-fiction man/);
 assert.match(other, /FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE/);
-assert.match(other, /“좆됐네, 꼴이” and “좆같이 생겼네” FAIL/);
+assert.match(other, /do not turn it into explicit obscenity, appearance abuse/);
+assert.doesNotMatch(other, /좆됐네, 꼴이|좆같이 생겼네/);
 assert.match(narration, /FINAL KOREAN-PROSE GATE — REJECT CALQUES BEFORE OUTPUT/);
-assert.match(narration, /“깊고 갈리는 피로,”/);
+assert.match(narration, /피로가 뼛속까지 내려앉다/);
+assert.doesNotMatch(narration, /깊고 갈리는 피로|눈이 어둠에 적응하도록 두었다/);
 for (const [prompt, gate] of [
     [narration, 'FINAL KOREAN-PROSE GATE'],
     [target, 'FINAL EXECUTION GATE'],
