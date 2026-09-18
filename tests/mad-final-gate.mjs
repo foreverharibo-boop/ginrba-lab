@@ -55,14 +55,15 @@ for (const mode of [
                 scope,
                 speakerIdentity: identity,
             });
-            assertMadGate(scoped, 'TRANSLATION TARGETS', `scoped-${scope}/${JSON.stringify(mode)}/${hongjin}`, {
-                hongjin: hongjin && scope === 'target_dialogue',
-            });
-            const gate = scoped.slice(scoped.lastIndexOf(marker), scoped.includes(hongjinMarker) ? scoped.lastIndexOf(hongjinMarker) : undefined);
-            if (scope === 'narration') assert.match(gate, /keep it narration/i);
-            if (scope === 'target_dialogue') assert.match(gate, /confirmed TARGET CHARACTER dialogue/i);
-            if (scope === 'other_dialogue') assert.match(gate, /USER\/NPC\/OTHER dialogue/i);
-            if (scope === 'tagged_content') assert.match(gate, /visible tagged content/i);
+            assert.match(scoped, /MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION/);
+            assert.match(scoped, /EXECUTE IN THIS ORDER/);
+            assert.match(scoped, /Discard source-language wording, clause order and sentence rhythm/);
+            assert.match(scoped, /Natural Korean is not literal Korean and not free invention/);
+            if (scope === 'narration') assert.match(scoped, /NARRATION ONLY/);
+            if (scope === 'target_dialogue') assert.match(scoped, /CONFIRMED .* DIALOGUE ONLY/);
+            if (scope === 'other_dialogue') assert.match(scoped, /CONFIRMED USER\/NPC\/OTHER DIALOGUE ONLY/);
+            if (scope === 'tagged_content') assert.match(scoped, /VISIBLE TEXT INSIDE TAGS ONLY/);
+            if (hongjin && scope === 'target_dialogue') assert.match(scoped, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
         }
 
         const narrationTranslation = '그는 계단참을 건넜다.';

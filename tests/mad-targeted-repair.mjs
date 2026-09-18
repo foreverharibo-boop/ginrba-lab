@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
-    buildMadKoreanTargetedAuditPrompt,
+    buildMadFlashV2AuditPrompt,
     repairCanonicalKoreanNameSuffixes,
     repairCanonicalKoreanVocatives,
 } from '../core.js';
@@ -58,7 +58,7 @@ const segments = [
     { id: 'seg_0000', type: 'dialogue_candidate', outputScope: 'target_dialogue', text: '"The front\'s a death trap!"' },
     { id: 'seg_0001', type: 'narration', outputScope: 'narration', text: 'He shoved Alex through the service entrance.' },
 ];
-const prompt = buildMadKoreanTargetedAuditPrompt({
+const prompt = buildMadFlashV2AuditPrompt({
     segments,
     currentTranslations: new Map([
         ['seg_0000', '"정문은 좆밥이야!"'],
@@ -72,13 +72,12 @@ const prompt = buildMadKoreanTargetedAuditPrompt({
     },
     settings: { developerHongjinFlavorEnabled: true, developerHongjinProfanity: 'natural' },
 });
-assert.match(prompt, /KOREAN-ONLY FINAL MANUSCRIPT REWRITE/);
-assert.match(prompt, /For EVERY row/);
-assert.match(prompt, /current_translation only as a rough scene memo/i);
-assert.match(prompt, /original contemporary Korean fiction/i);
-assert.match(prompt, /only content boundary/i);
-assert.match(prompt, /throw the entire row away/i);
-assert.match(prompt, /every local_flags item/i);
+assert.match(prompt, /ONE FINAL SOURCE AUDIT/i);
+assert.match(prompt, /return ONLY ids that clearly fail/i);
+assert.match(prompt, /"source":"\\"The front's a death trap!/i);
+assert.match(prompt, /target_dialogue only/i);
+assert.match(prompt, /without changing facts, speech act/i);
+assert.match(prompt, /If every row passes/i);
 
 // Exercise the exact sparse parser/request loop extracted from index.js.
 const index = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
@@ -170,14 +169,16 @@ const auditEnv = {
     madKoreanExclusiveMode: () => true,
     settings: { developerHongjinFlavorEnabled: true },
     outputScopeForSegment: segment => segment.outputScope,
+    buildMadFlashV2AuditPrompt: () => 'audit-v2',
     buildMadKoreanTargetedAuditPrompt: () => 'audit',
     requestSparseMadRepairs: async () => {
         auditRequests += 1;
+        if (failIntegrity) throw new Error('audit failed');
         return new Map([['seg_0000', '"정문으로 가면 뒤져!"']]);
     },
     runWithConcurrency: async (items, _limit, worker) => Promise.all(items.map(worker)),
     SCOPED_PARALLEL_REQUEST_LIMIT: 3,
-    splitMadFlashScopeSegments: (_scope, rows) => [rows],
+    splitMadAuditSegments: rows => [rows],
     repairKoreanParticleAlternatives: value => value,
     repairStrictCanonicalIdentityNames: value => value,
     repairCanonicalKoreanVocatives: value => value,
@@ -218,6 +219,6 @@ auditResult = await runAudit(auditArgs);
 assert.equal(auditResult.changed, 0);
 assert.equal(auditTranslations.get('seg_0000'), '1차 번역');
 assert.equal(auditTranslations.get('seg_0001'), '민철이를 비상구로 밀었다.');
-assert.equal(auditRequests, 4);
+assert.equal(auditRequests, 2);
 
 console.log('PASS: generic canonical-name suffix/vocative repair, full-name given-name aliases, sparse Mad+Hongjin semantic audit prompt, parser and transactional rollback.');

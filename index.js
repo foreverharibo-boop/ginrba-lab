@@ -14,7 +14,7 @@ import {
     buildHongjinVoiceRewritePrompt,
     buildInputPrompt,
     buildIdentityNameFallbackPrompt,
-    buildMadKoreanTargetedAuditPrompt,
+    buildMadFlashV2AuditPrompt,
     buildMultiSelectionPrompt,
     buildNameHistoryFormsPrompt,
     buildNameMatchPrompt,
@@ -51,7 +51,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.103';
+const EXTENSION_VERSION = '0.5.108';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4106,19 +4106,38 @@ async function requestScopedGroupTranslations({
 function splitMadFlashScopeSegments(scope, segments) {
     const rows = Array.from(segments || []);
     if (!rows.length) return [];
-    const limits = scope === 'narration'
-        ? { count: 2, chars: 800 }
-        : scope === 'target_dialogue'
-            ? { count: 4, chars: 700 }
-            : scope === 'tagged_content'
-                ? { count: 2, chars: 800 }
-                : { count: 4, chars: 800 };
+    // V2 uses one coherent request per scope for ordinary long outputs. Split
+    // only genuinely oversized scopes; tiny chunks destroyed scene rhythm and
+    // multiplied requests without improving Flash reliability.
+    const limits = scope === 'tagged_content'
+        ? { count: 40, chars: 12000 }
+        : { count: 60, chars: 16000 };
     const chunks = [];
     let chunk = [];
     let chars = 0;
     for (const segment of rows) {
         const weight = String(segment?.text || '').length + 40;
         if (chunk.length && (chunk.length >= limits.count || chars + weight > limits.chars)) {
+            chunks.push(chunk);
+            chunk = [];
+            chars = 0;
+        }
+        chunk.push(segment);
+        chars += weight;
+    }
+    if (chunk.length) chunks.push(chunk);
+    return chunks;
+}
+
+function splitMadAuditSegments(segments) {
+    const rows = Array.from(segments || []);
+    if (!rows.length) return [];
+    const chunks = [];
+    let chunk = [];
+    let chars = 0;
+    for (const segment of rows) {
+        const weight = String(segment?.text || '').length + 80;
+        if (chunk.length && (chunk.length >= 12 || chars + weight > 3600)) {
             chunks.push(chunk);
             chunk = [];
             chars = 0;
@@ -4143,7 +4162,12 @@ function scopedSourceContext(segmented, targetSegments) {
 async function requestScopedOutputTranslations(segmented, speakerScopes, options = {}) {
     // Split only the initial translation request. Existing speaker isolation,
     // prompts, full-message planning, repair and quality checks remain intact.
-    const splitCount = outputSplitCount(settings);
+    // Mad Korean + Hong-jin already isolates narration/target/other/tagged
+    // scopes below. Applying the user's outer 2-way split as well multiplies
+    // the same work without adding context or quality.
+    const consolidatedMadHongjin = madKoreanExclusiveMode()
+        && settings.developerHongjinFlavorEnabled === true;
+    const splitCount = consolidatedMadHongjin ? 1 : outputSplitCount(settings);
     if (splitCount > 1 && !options.splitBatchCount) {
         return runOutputBatches(segmented, splitCount, options, (segments, batchOptions) =>
             requestScopedOutputTranslations({
@@ -4272,8 +4296,9 @@ async function repairProtectedTokenIntegrity(segmented, translations, options = 
     const started = performance.now();
     const diagnostic = recordProtectedRecovery(invalid, segmented, translations, options);
     let attempts = 0;
+    const maxAttempts = settings.developerMadKoreanOutputEnabled === true ? 1 : 5;
     try {
-        for (; attempts < 5;) {
+        for (; attempts < maxAttempts;) {
             attempts += 1;
             await repairSegmentsByOutputScope({
                 invalid, segmented, translations, speakerScopes,
@@ -4458,6 +4483,22 @@ function hongjinVoiceRewriteFailure(segment, translation, firstPassTranslation =
     return '';
 }
 
+function hongjinSceneVoiceFailure(candidates, translations) {
+    const rows = Array.from(candidates || []);
+    if (!rows.length) return '';
+    const rawTexture = /(?:씨발|시발|존나|좆|지랄|개같|개소리|빌어먹|환장|처(?:먹|박|붙|자|일어나|가|들이켜)|뒈|뒤져|냅둬|꼴|잘도|어련|하시지|봐준다|용케|썩|당장|꾸물)/u;
+    const explicitProfanity = /(?:씨발|시발|존나|좆|지랄|개(?:같|소리|새끼|판|빡)|빌어먹|뒈|뒤져)/u;
+    const textured = rows.filter(segment => rawTexture.test(String(translations.get(segment.id) || ''))).length;
+    const explicit = rows.filter(segment => explicitProfanity.test(String(translations.get(segment.id) || ''))).length;
+    if (settings.developerHongjinProfanity === 'high') {
+        const required = Math.max(1, Math.ceil(rows.length * 0.4));
+        if (explicit < required) return `scene-explicit-profanity-density-${explicit}-of-${required}`;
+    } else if (settings.developerHongjinProfanity === 'natural' && rows.length >= 2 && textured < 1) {
+        return 'scene-voice-density-0-of-1';
+    }
+    return '';
+}
+
 async function runHongjinVoiceRewrite({
     segmented,
     translations,
@@ -4478,7 +4519,7 @@ async function runHongjinVoiceRewrite({
     const fullSourceContext = (segmented.segments || []).map(segment => segment.text).join('\n');
 
     try {
-        const chunks = splitMadFlashScopeSegments('target_dialogue', candidates);
+        const chunks = splitMadAuditSegments(candidates);
         const rewrittenGroups = await runWithConcurrency(
             chunks,
             SCOPED_PARALLEL_REQUEST_LIMIT,
@@ -4533,46 +4574,40 @@ async function runHongjinVoiceRewrite({
         };
         applyRewrittenGroups(rewrittenGroups);
 
-        let failed = candidates.filter(segment => hongjinVoiceRewriteFailure(
+        const failed = candidates.filter(segment => hongjinVoiceRewriteFailure(
             segment,
             translations.get(segment.id),
             originalTranslations.get(segment.id),
         ));
-        for (let attempt = 0; failed.length && attempt < 2; attempt += 1) {
-            const retryGroups = await runWithConcurrency(
-                failed,
-                SCOPED_PARALLEL_REQUEST_LIMIT,
-                async segment => {
-                    const prompt = buildHongjinVoiceRewritePrompt({
-                        segments: [segment],
-                        currentTranslations: translations,
-                        sourceContext: scopedSourceContext(segmented, [segment]),
-                        speakerIdentity,
-                        settings,
-                        nameTokens: segmented.nameTokens || [],
-                    });
-                    const reason = hongjinVoiceRewriteFailure(
-                        segment,
-                        translations.get(segment.id),
-                        originalTranslations.get(segment.id),
-                    );
-                    return requestSegments(`${prompt}\n\nAUTOMATIC REJECTION: ${reason}. The previous answer was rejected by code. Produce a structurally different, complete Kim Hong-jin utterance.`, [{
-                        id: segment.id,
-                        type: segment.type,
-                        text: String(translations.get(segment.id) || ''),
-                    }], {
-                        ...options,
-                        parallelRequest: true,
-                        stage: `hongjin-voice-enforced-retry-${attempt + 1}`,
-                    });
+        const sceneFailure = hongjinSceneVoiceFailure(candidates, translations);
+        const retryCandidates = sceneFailure ? candidates : failed;
+        if (retryCandidates.length) {
+            const prompt = buildHongjinVoiceRewritePrompt({
+                segments: retryCandidates,
+                currentTranslations: translations,
+                sourceContext: scopedSourceContext(segmented, retryCandidates),
+                speakerIdentity,
+                settings,
+                nameTokens: segmented.nameTokens || [],
+            });
+            const reasons = [sceneFailure, ...failed.map(segment => (
+                `${segment.id}:${hongjinVoiceRewriteFailure(segment, translations.get(segment.id), originalTranslations.get(segment.id))}`
+            ))].filter(Boolean).join(', ');
+            const expected = retryCandidates.map(segment => ({
+                id: segment.id,
+                type: segment.type,
+                text: String(translations.get(segment.id) || ''),
+            }));
+            const retried = await requestSegments(
+                `${prompt}\n\nSCENE-LEVEL RETRY: ${reasons}. Rewrite this set together once. Distribute the configured voice across the scene without changing actions, addressees, or speech acts.`,
+                expected,
+                {
+                    ...options,
+                    parallelRequest: true,
+                    stage: 'hongjin-voice-scene-retry',
                 },
             );
-            applyRewrittenGroups(retryGroups);
-            failed = candidates.filter(segment => hongjinVoiceRewriteFailure(
-                segment,
-                translations.get(segment.id),
-                originalTranslations.get(segment.id),
-            ));
+            applyRewrittenGroups([retried]);
         }
         // A voice rewrite is an optional quality pass, never a validity gate.
         // DeepSeek may deliberately keep terse lines terse or decline to add a
@@ -4645,41 +4680,20 @@ async function runMadKoreanTargetedAudit({
     const originalTranslations = new Map(translations);
 
     try {
-        // DeepSeek Flash loses Korean syllables/particles when narration,
-        // character voice and tagged content compete inside one long audit.
-        // Audit each output scope independently, but in parallel, so the
-        // second pass stays focused without adding serial wall-clock delay.
-        const auditGroups = [...candidates.reduce((groups, segment) => {
-            const scope = segment.outputScope || 'narration';
-            if (!groups.has(scope)) groups.set(scope, []);
-            groups.get(scope).push(segment);
-            return groups;
-        }, new Map()).entries()].flatMap(([scope, scopedCandidates]) =>
-            splitMadFlashScopeSegments(scope, scopedCandidates)
-                .map(chunk => [scope, chunk]));
-        const reviewedGroups = await runWithConcurrency(
-            auditGroups,
-            SCOPED_PARALLEL_REQUEST_LIMIT,
-            async ([scope, scopedCandidates]) => {
-                const prompt = buildMadKoreanTargetedAuditPrompt({
-                    segments: scopedCandidates,
-                    currentTranslations: translations,
-                    sourceContext: scopedCandidates.map(segment => segment.text).join('\n'),
-                    speakerIdentity,
-                    settings,
-                });
-                const reviewed = await requestSparseMadRepairs(prompt, scopedCandidates, {
-                    ...options,
-                    parallelRequest: true,
-                    stage: `mad-targeted-audit:${scope}`,
-                });
-                return reviewed;
-            },
-        );
-        const reviewed = new Map();
-        for (const group of reviewedGroups) {
-            for (const [id, translation] of group) reviewed.set(id, translation);
-        }
+        // One source-aware sparse audit replaces the former scope/chunk
+        // manuscript rewrites. Scope is carried per row, so the reviewer can
+        // check speaker leakage without issuing dozens of requests.
+        const prompt = buildMadFlashV2AuditPrompt({
+            segments: candidates,
+            currentTranslations: translations,
+            sourceContext: segmented.protectedText,
+            speakerIdentity,
+            settings,
+        });
+        const reviewed = await requestSparseMadRepairs(prompt, candidates, {
+            ...options,
+            stage: 'mad-targeted-audit',
+        });
         if (!reviewed.size) {
             console.info(`[긴르바 실험실] 미친 한출 부분 검수 완료: ${candidates.length}구간 확인 · 수정 없음`);
             return { checked: candidates.length, changed: 0 };
@@ -4706,42 +4720,6 @@ async function runMadKoreanTargetedAudit({
                 ),
             );
             changed.push(segment);
-        }
-
-        if (changed.length) {
-            const banned = changed.filter(segment =>
-                findBannedWords(translations.get(segment.id), settings).length,
-            );
-            if (banned.length) {
-                await repairSegmentsByOutputScope({
-                    invalid: banned,
-                    segmented,
-                    translations,
-                    speakerScopes,
-                    options: { ...options, speakerIdentity },
-                    buildPrompt: buildBannedRepairPrompt,
-                    stage: 'mad-targeted-audit-banned-repair',
-                });
-            }
-
-            const untranslated = findUntranslatedSegments(changed, translations, settings, speakerScopes);
-            if (untranslated.length) {
-                await repairSegmentsByOutputScope({
-                    invalid: untranslated,
-                    segmented,
-                    translations,
-                    speakerScopes,
-                    options: { ...options, speakerIdentity },
-                    buildPrompt: buildUntranslatedRepairPrompt,
-                    stage: 'mad-targeted-audit-untranslated-repair',
-                });
-            }
-
-            await repairProtectedTokenIntegrity(segmented, translations, {
-                ...options,
-                speakerIdentity,
-                speakerScopes,
-            });
         }
 
         console.info(`[긴르바 실험실] 미친 한출 부분 검수 완료: ${candidates.length}구간 확인 · ${changed.length}구간 수정`);
@@ -5030,34 +5008,30 @@ async function translateOutputText(source, options = {}) {
         stage: options.stage || 'output-translation',
     }));
 
-    for (let repairAttempt = 0; repairAttempt < 5; repairAttempt += 1) {
-        const invalid = segmented.segments.filter(segment =>
-            findBannedWords(translations.get(segment.id), settings).length,
-        );
-        if (!invalid.length) break;
-        await repairSegmentsByOutputScope({
-            invalid,
-            segmented,
-            translations,
-            speakerScopes,
-            options: { ...options, speakerIdentity },
-            buildPrompt: buildBannedRepairPrompt,
-            stage: 'banned-word-repair',
-        });
-    }
+    if (!madKoreanExclusiveMode()) {
+        for (let repairAttempt = 0; repairAttempt < 5; repairAttempt += 1) {
+            const invalid = segmented.segments.filter(segment =>
+                findBannedWords(translations.get(segment.id), settings).length,
+            );
+            if (!invalid.length) break;
+            await repairSegmentsByOutputScope({
+                invalid, segmented, translations, speakerScopes,
+                options: { ...options, speakerIdentity },
+                buildPrompt: buildBannedRepairPrompt,
+                stage: 'banned-word-repair',
+            });
+        }
 
-    for (let repairAttempt = 0; repairAttempt < 5; repairAttempt += 1) {
-        const invalid = findUntranslatedSegments(segmented.segments, translations, settings, speakerScopes);
-        if (!invalid.length) break;
-        await repairSegmentsByOutputScope({
-            invalid,
-            segmented,
-            translations,
-            speakerScopes,
-            options: { ...options, speakerIdentity },
-            buildPrompt: buildUntranslatedRepairPrompt,
-            stage: 'untranslated-repair',
-        });
+        for (let repairAttempt = 0; repairAttempt < 5; repairAttempt += 1) {
+            const invalid = findUntranslatedSegments(segmented.segments, translations, settings, speakerScopes);
+            if (!invalid.length) break;
+            await repairSegmentsByOutputScope({
+                invalid, segmented, translations, speakerScopes,
+                options: { ...options, speakerIdentity },
+                buildPrompt: buildUntranslatedRepairPrompt,
+                stage: 'untranslated-repair',
+            });
+        }
     }
 
     // Planned terms are protected and no longer appear as plain source words
@@ -5071,11 +5045,13 @@ async function translateOutputText(source, options = {}) {
     // Validate against the original protected source, not merely against the
     // previous repair result. A missing NAME token can otherwise survive every
     // post-processing pass and only fail during final assembly.
-    await repairProtectedTokenIntegrity(segmented, translations, {
-        ...options,
-        speakerIdentity,
-        speakerScopes,
-    });
+    if (!madKoreanExclusiveMode()) {
+        await repairProtectedTokenIntegrity(segmented, translations, {
+            ...options,
+            speakerIdentity,
+            speakerScopes,
+        });
+    }
 
     for (const [id, translation] of translations) {
         const sourceSegment = segmented.segments.find(segment => segment.id === id) || {};
@@ -5098,6 +5074,36 @@ async function translateOutputText(source, options = {}) {
         options,
     });
 
+    // Mad Flash V2 performs at most one selective recovery round, and only
+    // after the single source-aware audit has identified/fixed writing errors.
+    if (madKoreanExclusiveMode()) {
+        const banned = segmented.segments.filter(segment =>
+            findBannedWords(translations.get(segment.id), settings).length,
+        );
+        if (banned.length) {
+            await repairSegmentsByOutputScope({
+                invalid: banned, segmented, translations, speakerScopes,
+                options: { ...options, speakerIdentity },
+                buildPrompt: buildBannedRepairPrompt,
+                stage: 'mad-final-banned-recovery',
+            });
+        }
+        const untranslated = findUntranslatedSegments(segmented.segments, translations, settings, speakerScopes);
+        if (untranslated.length) {
+            await repairSegmentsByOutputScope({
+                invalid: untranslated, segmented, translations, speakerScopes,
+                options: { ...options, speakerIdentity },
+                buildPrompt: buildUntranslatedRepairPrompt,
+                stage: 'mad-final-untranslated-recovery',
+            });
+        }
+        await repairProtectedTokenIntegrity(segmented, translations, {
+            ...options,
+            speakerIdentity,
+            speakerScopes,
+        });
+    }
+
     await runExperimentalQualityAudit({
         segmented,
         translations,
@@ -5106,15 +5112,19 @@ async function translateOutputText(source, options = {}) {
         options,
     });
 
-    // Voice rewrite is the final AI writing pass. Earlier audits must not be
-    // allowed to neutralize or overwrite the enforced character result.
-    await runHongjinVoiceRewrite({
-        segmented,
-        translations,
-        speakerScopes,
-        speakerIdentity,
-        options,
-    });
+    // Mad Korean's source-aware audit is already the final voice/meaning gate.
+    // Do not follow it with the old source-less Hong-jin reauthoring pass,
+    // which could swap speakers or invent actions. Keep that legacy pass only
+    // for Hong-jin flavor used without Mad Korean.
+    if (!madKoreanExclusiveMode()) {
+        await runHongjinVoiceRewrite({
+            segmented,
+            translations,
+            speakerScopes,
+            speakerIdentity,
+            options,
+        });
+    }
 
     // A sparse audit may invoke a downstream repair prompt. Re-run the local
     // Mad-name surface repair once so that the final repair response cannot

@@ -63,5 +63,6 @@ const translateBody = index.slice(translateStart, translateEnd);
 assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') >= 0);
 assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') > translateBody.indexOf('await runMadKoreanTargetedAudit('));
 assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') > translateBody.indexOf('await runExperimentalQualityAudit('));
+assert.ok(translateBody.lastIndexOf('if (!madKoreanExclusiveMode())', translateBody.indexOf('await runHongjinVoiceRewrite(')) >= 0);
 
-console.log('PASS: ordinary E→K stays neutral and delegates localization; English-character taste remains separate; Hongjin uses a dedicated second-pass rewrite.');
+console.log('PASS: ordinary E→K stays neutral and delegates localization; English-character taste remains separate; source-less Hongjin rewrite is excluded from Mad Korean.');

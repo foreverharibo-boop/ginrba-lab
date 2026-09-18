@@ -31,27 +31,28 @@ const builders = {
 let checks = 0;
 for (const [name, build] of Object.entries(builders)) {
     const prompt = build();
-    assert.equal(prompt.split('DEEPSEEK V4.1 FLASH — KOREAN RECOMPOSITION').length - 1, 1, `${name}: one contract`);
-    assert.match(prompt, /MANDATORY BLANK-PAGE REWRITING/);
-    assert.match(prompt, /Destroy and discard every source word choice/);
-    assert.match(prompt, /write the passage again from a blank page/);
-    assert.match(prompt, /Do not create a new scene event or remove an existing scene event/);
-    assert.match(prompt, /KOREAN-ORIGINAL TEST/);
-    assert.match(prompt, /Dialogue must sound (?:like words the actual speaker would naturally say aloud|spoken)/);
-    assert.match(prompt, /intact Korean words/);
-    assert.match(prompt, /OUTPUT SHELL ONLY/);
-    assert.match(prompt, /BANNED KOREAN WORDS/);
-    checks += 9;
+    if (['narration', 'targetDialogue', 'otherDialogue'].includes(name)) {
+        assert.equal(prompt.split('MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION').length - 1, 1, `${name}: one V2 contract`);
+        assert.match(prompt, /EXECUTE IN THIS ORDER/);
+        assert.match(prompt, /Discard source-language wording, clause order and sentence rhythm/);
+        assert.match(prompt, /Natural Korean is not literal Korean and not free invention/);
+        assert.match(prompt, /add or remove no event or proposition/);
+        assert.match(prompt, /BANNED KOREAN WORDS/);
+        checks += 6;
+    } else {
+        assert.equal(prompt.split('DEEPSEEK V4.1 FLASH — KOREAN RECOMPOSITION').length - 1, 1, `${name}: one legacy contract`);
+        checks += 1;
+    }
 }
 
 const narration = builders.narration();
 const target = builders.targetDialogue();
 const other = builders.otherDialogue();
-assert.doesNotMatch(narration, /DIVERSE VOICE MODELS/);
-assert.match(target, /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
-assert.doesNotMatch(other, /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
+assert.doesNotMatch(narration, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+assert.match(target, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+assert.doesNotMatch(other, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
 assert.match(target, /sly, shameless, playful/);
-assert.match(target, /Short fragments may become complete spoken lines/);
+assert.match(target, /original contemporary Korean speech/);
 
 const off = core.buildOutputPrompt(segmented, { ...settings, developerMadKoreanOutputEnabled: false }, '', identity);
 assert.doesNotMatch(off, /SHORT MANDATORY KOREAN REAUTHORING CONTRACT/);

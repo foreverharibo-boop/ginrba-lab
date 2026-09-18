@@ -9,7 +9,7 @@ const helpers = Function('settings', `${index.slice(start, end)}\nreturn {compac
     developerHongjinProfanity: 'natural',
     developerHongjinTranscreation: 'strong',
 });
-const highHelpers = Function('settings', `${index.slice(start, end)}\nreturn {hongjinVoiceRewriteFailure};`)({
+const highHelpers = Function('settings', `${index.slice(start, end)}\nreturn {hongjinVoiceRewriteFailure, hongjinSceneVoiceFailure};`)({
     developerHongjinProfanity: 'high',
     developerHongjinTranscreation: 'maximum',
 });
@@ -24,16 +24,36 @@ assert.equal(helpers.hongjinVoiceRewriteFailure(five, '"딱 5분만 더 봐준�
 assert.equal(highHelpers.hongjinVoiceRewriteFailure(time, '"됐다, 이제 일어나."', '"시간이다."'), '');
 assert.equal(highHelpers.hongjinVoiceRewriteFailure(time, '"자, 존나 오래 쉬셨네. 이제 일어나시지."', '"시간이다."'), '');
 
+const sceneRows = [time, five, { id: 'look', text: '"Look at me."' }, { id: 'drink', text: '"Drink."' }, { id: 'move', text: '"Move."' }];
+assert.equal(highHelpers.hongjinSceneVoiceFailure(sceneRows, new Map([
+    ['time', '"무슨 개소리인지 모르겠네."'],
+    ['five', '"뭐라도 좀 처먹어."'],
+    ['look', '"나 봐."'],
+    ['drink', '"천천히 마셔."'],
+    ['move', '"이제 간다."'],
+])), 'scene-explicit-profanity-density-1-of-2');
+assert.equal(highHelpers.hongjinSceneVoiceFailure(sceneRows, new Map([
+    ['time', '"무슨 개소리인지 모르겠네."'],
+    ['five', '"존나 오래 쉬었네. 이제 가자."'],
+    ['look', '"나 봐."'],
+    ['drink', '"천천히 마셔."'],
+    ['move', '"이제 간다."'],
+])), '');
+
 assert.doesNotMatch(index, /throw new Error\(`김홍진 보이스 강제 재작성 실패:/u);
 
 assert.match(index, /needsHongjinAttribution/);
 assert.match(index, /dialogueSegments\.some\(segment => scopes\[segment\.id\] !== 'target_dialogue'\)/);
-assert.match(index, /hongjin-voice-enforced-retry-/);
+assert.match(index, /hongjin-voice-scene-retry/);
+assert.match(index, /function hongjinSceneVoiceFailure\(/);
+assert.doesNotMatch(index, /hongjin-voice-enforced-retry-/);
 assert.match(index, /직역본을 최종 결과로 채택하지 않습니다/);
 
 const translateStart = index.indexOf('async function translateOutputText(');
 const translateEnd = index.indexOf('function inputIdentitySpellingContext(', translateStart);
 const body = index.slice(translateStart, translateEnd);
-assert.ok(body.indexOf('await runHongjinVoiceRewrite(') > body.indexOf('await runExperimentalQualityAudit('));
+const voiceGuard = body.lastIndexOf('if (!madKoreanExclusiveMode())', body.indexOf('await runHongjinVoiceRewrite('));
+assert.ok(voiceGuard > body.indexOf('await runExperimentalQualityAudit('));
+assert.ok(body.indexOf('await runHongjinVoiceRewrite(') > voiceGuard);
 
-console.log('PASS: ambiguous speakers trigger attribution, literal fragments are rejected, retries are enforced, and Hongjin is the final AI writing pass.');
+console.log('PASS: ambiguous speakers trigger attribution; legacy Hongjin rewrite remains available but is skipped after Mad Korean source-aware audit.');

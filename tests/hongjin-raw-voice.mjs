@@ -20,23 +20,28 @@ const settings = {
 const build = scope => core.buildScopedOutputPrompt({ segments, sourceContext: '', settings, scope, speakerIdentity: identity });
 const prompt = build('target_dialogue');
 
-assert.equal(prompt.split('TARGET DIALOGUE ONLY — KIM HONG-JIN').length - 1, 1);
-assert.equal(prompt.split('MANDATORY AUTHORIZED VOICE OVERRIDE').length - 1, 1);
-assert.match(prompt, /Do not translate confirmed/);
-assert.match(prompt, /write from scratch/);
-assert.match(prompt, /Short fragments may become complete spoken lines/);
-assert.match(prompt, /most eligible TARGET lines/);
-assert.match(prompt, /active cheeky needling/);
-assert.match(prompt, /openly crude, brazen diction/);
-assert.match(prompt, /highly visible playful audacity/);
-assert.match(prompt, /not by attaching one curse to a neutral sentence/);
-assert.match(prompt, /Across the dialogue set, distribute/);
-assert.match(prompt, /USER-DIRECTED PROFANITY GUARD/);
-assert.match(prompt, /situation-directed profanity and curse-free rawness/);
-assert.match(prompt, /generic serious man/);
+assert.equal(prompt.split('KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT').length - 1, 1);
+assert.equal(prompt.split('MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION').length - 1, 1);
+assert.match(prompt, /Discard source-language wording, clause order and sentence rhythm/);
+assert.match(prompt, /original contemporary Korean speech/);
+assert.match(prompt, /Reauthoring=maximum/);
+assert.match(prompt, /most compatible lines/);
+assert.match(prompt, /teasing=active/);
+assert.match(prompt, /vulgarity=openly crude/);
+assert.match(prompt, /playfulness=high/);
+assert.match(prompt, /A neutral sentence plus a detachable curse fails/);
+assert.match(prompt, /Vary coarse mechanisms/);
+assert.match(prompt, /Never turn USER/);
+assert.match(prompt, /situation-directed profanity/);
+assert.match(prompt, /generic macho man/);
+assert.match(prompt, /REFERENCE-CORPUS RHYTHM PROFILE/);
+assert.match(prompt, /ORDINARY CONFLICT/);
+assert.match(prompt, /ACTIVE DANGER/);
+assert.match(prompt, /CONCEALED CARE/);
+assert.ok(prompt.length >= 12000);
 
 for (const scope of ['narration', 'other_dialogue', 'tagged_content']) {
-    assert.doesNotMatch(build(scope), /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
+    assert.doesNotMatch(build(scope), /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
 }
 
 const off = core.buildScopedOutputPrompt({
@@ -46,7 +51,7 @@ const off = core.buildScopedOutputPrompt({
     scope: 'target_dialogue',
     speakerIdentity: identity,
 });
-assert.doesNotMatch(off, /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
+assert.doesNotMatch(off, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
 assert.doesNotMatch(core.buildInputPrompt('안녕', settings, 'male', identity), /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
 
 console.log('PASS: Flash-optimized Kim Hong-jin voice is mandatory, varied, settings-aware, and restricted to confirmed target dialogue.');

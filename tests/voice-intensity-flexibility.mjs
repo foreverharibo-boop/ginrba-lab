@@ -31,15 +31,9 @@ for (const mode of [
         developerMadKoreanOutputEnabled: true,
         developerHongjinFlavorEnabled: false,
     });
-    if (!mode.developerCompressedPromptEnabled && !mode.developerExtremeCompressedPromptEnabled) {
-        assert.match(madOnly, /ONLY CONTENT BOUNDARY/);
-        assert.match(madOnly, /Do not treat wording, sentence length, literal propositions or source rhetoric as protected content/);
-        assert.match(madOnly, /write the passage again from a blank page/);
-    } else {
-        assert.match(madOnly, /ONLY CONTENT BOUNDARY/);
-        assert.match(madOnly, /ANTI-TRANSLATION EXECUTION/);
-        assert.match(madOnly, /write the passage again from a blank page/i);
-    }
+    assert.match(madOnly, /MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION/);
+    assert.match(madOnly, /Surface syntax and wording are disposable/);
+    assert.match(madOnly, /Natural Korean is not literal Korean and not free invention/);
 
     const hongjin = build({
         ...base,
@@ -51,10 +45,10 @@ for (const mode of [
         developerHongjinVulgarity: 'open',
         developerHongjinPlayfulness: 'high',
     });
-    assert.match(hongjin, /MANDATORY AUTHORIZED VOICE OVERRIDE/);
-    assert.match(hongjin, /Short fragments may become complete spoken lines/i);
-    assert.match(hongjin, /Across the dialogue set, distribute/i);
-    assert.match(hongjin, /If the full set remains clean, neutral, terse/i);
+    assert.match(hongjin, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+    assert.match(hongjin, /Reauthoring=maximum/i);
+    assert.match(hongjin, /Vary coarse mechanisms/i);
+    assert.match(hongjin, /most compatible lines/i);
     assert.doesNotMatch(hongjin, /SOLE OPTIONAL STYLE ADD-ON|SOLE VOICE EXCEPTION|Preserve intensity both ways|Naturalization may neither censor nor escalate|source facts\/force\/consent/u);
     checks += 12;
 }
@@ -71,7 +65,7 @@ const narration = core.buildScopedOutputPrompt({
     scope: 'narration',
     speakerIdentity: identity,
 });
-assert.ok(!narration.includes('MANDATORY AUTHORIZED VOICE OVERRIDE'));
+assert.ok(!narration.includes('KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT'));
 checks++;
 
 console.log(`PASS: ordinary translation keeps source-force fidelity while Mad/Hongjin alone receive flexible surface intensity across normal, compact, and extreme routes (${checks} checks).`);

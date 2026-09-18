@@ -39,26 +39,28 @@ const route=Function(...Object.keys(env),routingCode+'\nreturn requestScopedOutp
 const flashHelpers=Function(...Object.keys(env),routingCode+'\nreturn {splitMadFlashScopeSegments,scopedSourceContext};')(...Object.values(env));
 const longNarration=Array.from({length:8},(_,i)=>({id:`long_${i}`,type:'narration',text:'가'.repeat(520)}));
 const flashChunks=flashHelpers.splitMadFlashScopeSegments('narration',longNarration);
-assert.ok(flashChunks.length>=4);
+assert.equal(flashChunks.length,1);
 assert.deepEqual(flashChunks.flat(),longNarration);
-assert.ok(flashChunks.every(chunk=>chunk.length<=3));
+assert.ok(flashChunks.every(chunk=>chunk.length<=60));
 const localContext=flashHelpers.scopedSourceContext({segments:longNarration},[longNarration[3]]);
 assert.equal(localContext.length,520*3+2);
 for(const count of [1,2,3])for(const mode of ['ordinary','compressed','extreme']){
  Object.assign(settings,{developerOutputSplitCount:count,developerCompressedPromptEnabled:mode==='compressed',developerExtremeCompressedPromptEnabled:mode==='extreme'});
  requests=[];const map=await route(segmented,{}, {speakerIdentity:identity,oneTimeInstruction:'ONE_TIME'});
- assert.equal(requests.length,count);assert.equal(map.size,segmented.segments.length);
+ assert.equal(requests.length,1);assert.equal(map.size,segmented.segments.length);
  assert.deepEqual(requests.flatMap(r=>r.segments),segmented.segments);
  for(const row of requests){
   // Compare the actual transmitted prompt with the original builder. No flavor,
   // register, profanity, one-time request or compression policy is rewritten.
   const tokens=segmented.nameTokens.filter(t=>row.segments.some(s=>s.text.includes(t.token)));
   assert.equal(row.prompt,core.buildOutputPrompt({...segmented,segments:row.segments,nameTokens:tokens},settings,'ONE_TIME',identity,null));
-  assert.equal(row.options.splitRequest===true,count>1);
+  assert.equal(row.options.splitRequest===true,false);
  }
 }
 // General split setting remains effective with developer mode OFF.
-settings.developerMode=false;requests=[];await route(segmented,{},{});assert.equal(requests.length,3);
+Object.assign(settings,{developerMode:false,developerMadKoreanOutputEnabled:false,developerHongjinFlavorEnabled:false,
+ dialoguePromptEnabled:false,otherDialoguePromptEnabled:false,dialogueEndingPreferred:'',dialogueEndingAvoid:'',dialogueEndingRepetitionReduction:false});
+requests=[];await route(segmented,{},{});assert.equal(requests.length,3);
 settings.developerMode=true;
 // Strict per-speaker prompts must remain isolated even when splitting is enabled.
 Object.assign(settings,{developerMadKoreanOutputEnabled:false,developerHongjinFlavorEnabled:false,
@@ -82,9 +84,11 @@ for(const row of requests){
 Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFlavorEnabled:true,
  developerOutputSplitCount:1,dialoguePrompt:'',otherDialoguePrompt:''});
 requests=[];await route(segmented,scopes,{speakerIdentity:identity});
+assert.ok(requests.length>=2&&requests.length<=4);
 assert.ok(requests.some(row=>row.options.stage.includes(':narration')));
 assert.ok(requests.some(row=>row.options.stage.includes(':target_dialogue')));
 for(const row of requests){
+ assert.match(row.prompt,/MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION/);
  const scope=['narration','target_dialogue','other_dialogue','tagged_content'].find(value=>row.options.stage.includes(`:${value}`));
  assert.equal(row.options.parallelRequest,true);
  for(const s of row.segments){

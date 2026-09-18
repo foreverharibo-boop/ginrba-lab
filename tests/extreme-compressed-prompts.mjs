@@ -87,8 +87,10 @@ has(madPrompt, 'BAN_SENTINEL');
 for (const value of ['GLOBAL_SENTINEL', 'ALL_DIALOGUE_SENTINEL', 'TARGET_DIALOGUE_SENTINEL', 'OTHER_DIALOGUE_SENTINEL']) lacks(madPrompt, value);
 assert.equal(count(madPrompt, 'TOP PRIORITY — NO MISOGYNY'), 1); checks += 1;
 assert.equal(count(madPrompt, 'USER-DIRECTED PROFANITY GUARD'), 1); checks += 1;
-lacks(builders.narration(madSettings), 'TARGET DIALOGUE ONLY — KIM HONG-JIN');
-has(builders.target(madSettings), 'TARGET DIALOGUE ONLY — KIM HONG-JIN');
+lacks(builders.narration(madSettings), 'KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT');
+has(builders.narration(madSettings), 'MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION');
+has(builders.target(madSettings), 'KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT');
+has(builders.target(madSettings), 'HIGH BOUNDARIES' .replace('HIGH ', 'HARD '));
 
 for (const compressed of [false, true]) {
     const prompt = builders.target({ ...base, developerCompressedPromptEnabled: compressed, developerHongjinFlavorEnabled: true });
@@ -153,13 +155,13 @@ for (const gender of ['male', 'female', 'unknown']) {
     for (const scope of ['mixed', 'narration', 'target_dialogue', 'other_dialogue']) {
         const p = scoped({ developerMadKoreanOutputEnabled: true, developerHongjinFlavorEnabled: true, developerHongjinOppaFrequency: 'often' }, scope, null, { ...identity, characterGender: gender });
         has(p, `gender=${JSON.stringify(gender)}`, `Mad identity gender/${scope}`);
-        if (['mixed', 'target_dialogue'].includes(scope)) has(p, 'TARGET DIALOGUE ONLY — KIM HONG-JIN');
+        if (scope === 'target_dialogue') has(p, 'KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT');
     }
 }
 for (const mad of [false, true]) {
     for (const scope of ['mixed', 'narration', 'target_dialogue', 'other_dialogue', 'tagged_content']) {
         const flags = { developerMadKoreanOutputEnabled: mad };
-        has(scoped(flags, scope), mad ? 'MANDATORY BLANK-PAGE REWRITING' : 'Transliterate clear Latin-script human names into Hangul');
+        has(scoped(flags, scope), mad ? 'MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION' : 'Transliterate clear Latin-script human names into Hangul');
         const p = scoped(flags, scope, null, { ...identity, nameLocks: [{ source: 'Alex', target: '알렉스고정' }] });
         has(p, '알렉스고정');
         has(p, 'FIXED-SPELLING PRIORITY');
