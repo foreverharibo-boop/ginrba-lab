@@ -51,7 +51,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.102';
+const EXTENSION_VERSION = '0.5.103';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4447,10 +4447,6 @@ function hongjinVoiceRewriteFailure(segment, translation, firstPassTranslation =
     if (!compactTarget) return 'empty';
     if (compactTarget === compactComparableText(firstPassTranslation)) return 'unchanged-first-pass';
 
-    const sourceWords = (source.match(/[\p{L}\p{N}]+/gu) || []).length;
-    const targetUnits = (target.match(/[가-힣A-Za-z0-9]+/gu) || []).join('').length;
-    if (sourceWords <= 4 && targetUnits <= 5) return 'mirrored-short-fragment';
-
     if (/^['“”"]*time[.!?]?['“”"]*$/iu.test(source.trim())
         && /^(?:이제)?시간(?:이다|이야|됐어|됐다)?$/u.test(compactTarget)) {
         return 'literal-time-fragment';
@@ -4458,13 +4454,6 @@ function hongjinVoiceRewriteFailure(segment, translation, firstPassTranslation =
     if (/five\s+more\s+minutes/iu.test(source)
         && /^(?:딱)?(?:5|오)분만더(?:있어|쉬어)?$/u.test(compactTarget)) {
         return 'literal-duration-fragment';
-    }
-    if (
-        settings.developerHongjinProfanity === 'high'
-        || settings.developerHongjinTranscreation === 'maximum'
-    ) {
-        const voiceTexture = /(?:씨발|시발|존나|좆|지랄|개같|빌어먹|환장|처(?:먹|박|붙|자|일어나|가)|뒈|뒤져|냅둬|꼴|잘도|어련|하시지|봐준다|용케|아주|굳이|죽어도|썩|당장|꾸물)/u;
-        if (!voiceTexture.test(target)) return 'bland-high-intensity-voice';
     }
     return '';
 }
@@ -4585,10 +4574,10 @@ async function runHongjinVoiceRewrite({
                 originalTranslations.get(segment.id),
             ));
         }
-        if (failed.length) {
-            const ids = failed.map(segment => segment.id).join(', ');
-            throw new Error(`김홍진 보이스 강제 재작성 실패: ${ids}`);
-        }
+        // A voice rewrite is an optional quality pass, never a validity gate.
+        // DeepSeek may deliberately keep terse lines terse or decline to add a
+        // coarse marker to every utterance.  Preserve the best available text
+        // instead of aborting an otherwise complete translation.
 
         if (changed.length) {
             const banned = changed.filter(segment =>

@@ -17,12 +17,14 @@ const highHelpers = Function('settings', `${index.slice(start, end)}\nreturn {ho
 const time = { id: 'time', type: 'dialogue_candidate', text: '"Time."' };
 const five = { id: 'five', type: 'dialogue_candidate', text: '"Five more minutes."' };
 
-assert.equal(helpers.hongjinVoiceRewriteFailure(time, '"시간이다."', '"시간."'), 'mirrored-short-fragment');
+assert.equal(helpers.hongjinVoiceRewriteFailure(time, '"시간이다."', '"시간."'), 'literal-time-fragment');
 assert.equal(helpers.hongjinVoiceRewriteFailure(five, '"5분만 더."', '"5분만 더."'), 'unchanged-first-pass');
 assert.equal(helpers.hongjinVoiceRewriteFailure(time, '"자, 쉬었으면 슬슬 일어나셔야지."', '"시간이다."'), '');
 assert.equal(helpers.hongjinVoiceRewriteFailure(five, '"딱 5분만 더 봐준다. 그 뒤엔 바로 움직여."', '"5분만 더."'), '');
-assert.equal(highHelpers.hongjinVoiceRewriteFailure(time, '"됐다, 이제 일어나."', '"시간이다."'), 'bland-high-intensity-voice');
+assert.equal(highHelpers.hongjinVoiceRewriteFailure(time, '"됐다, 이제 일어나."', '"시간이다."'), '');
 assert.equal(highHelpers.hongjinVoiceRewriteFailure(time, '"자, 존나 오래 쉬셨네. 이제 일어나시지."', '"시간이다."'), '');
+
+assert.doesNotMatch(index, /throw new Error\(`김홍진 보이스 강제 재작성 실패:/u);
 
 assert.match(index, /needsHongjinAttribution/);
 assert.match(index, /dialogueSegments\.some\(segment => scopes\[segment\.id\] !== 'target_dialogue'\)/);
