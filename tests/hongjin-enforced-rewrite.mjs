@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const index = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
+const start = index.indexOf('function compactComparableText(');
+const end = index.indexOf('async function runHongjinVoiceRewrite(', start);
+assert.ok(start >= 0 && end > start);
+const helpers = Function(`${index.slice(start, end)}\nreturn {compactComparableText, hongjinVoiceRewriteFailure};`)();
+
+const time = { id: 'time', type: 'dialogue_candidate', text: '"Time."' };
+const five = { id: 'five', type: 'dialogue_candidate', text: '"Five more minutes."' };
+
+assert.equal(helpers.hongjinVoiceRewriteFailure(time, '"시간이다."', '"시간."'), 'mirrored-short-fragment');
+assert.equal(helpers.hongjinVoiceRewriteFailure(five, '"5분만 더."', '"5분만 더."'), 'unchanged-first-pass');
+assert.equal(helpers.hongjinVoiceRewriteFailure(time, '"자, 쉬었으면 슬슬 일어나셔야지."', '"시간이다."'), '');
+assert.equal(helpers.hongjinVoiceRewriteFailure(five, '"딱 5분만 더 봐준다. 그 뒤엔 바로 움직여."', '"5분만 더."'), '');
+
+assert.match(index, /needsHongjinAttribution/);
+assert.match(index, /dialogueSegments\.some\(segment => scopes\[segment\.id\] !== 'target_dialogue'\)/);
+assert.match(index, /hongjin-voice-enforced-retry-/);
+assert.match(index, /직역본을 최종 결과로 채택하지 않습니다/);
+
+const translateStart = index.indexOf('async function translateOutputText(');
+const translateEnd = index.indexOf('function inputIdentitySpellingContext(', translateStart);
+const body = index.slice(translateStart, translateEnd);
+assert.ok(body.indexOf('await runHongjinVoiceRewrite(') > body.indexOf('await runExperimentalQualityAudit('));
+
+console.log('PASS: ambiguous speakers trigger attribution, literal fragments are rejected, retries are enforced, and Hongjin is the final AI writing pass.');

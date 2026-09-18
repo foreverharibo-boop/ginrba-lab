@@ -82,10 +82,10 @@ for(const row of requests){
 Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFlavorEnabled:true,
  developerOutputSplitCount:1,dialoguePrompt:'',otherDialoguePrompt:''});
 requests=[];await route(segmented,scopes,{speakerIdentity:identity});
-assert.ok(requests.some(row=>row.options.stage.endsWith(':narration')));
-assert.ok(requests.some(row=>row.options.stage.endsWith(':target_dialogue')));
+assert.ok(requests.some(row=>row.options.stage.includes(':narration')));
+assert.ok(requests.some(row=>row.options.stage.includes(':target_dialogue')));
 for(const row of requests){
- const scope=row.options.stage.split(':').at(-1);
+ const scope=['narration','target_dialogue','other_dialogue','tagged_content'].find(value=>row.options.stage.includes(`:${value}`));
  assert.equal(row.options.parallelRequest,true);
  for(const s of row.segments){
   const expected=s.type==='tagged_content'?'tagged_content':s.type==='dialogue_candidate'?scopes[s.id]:'narration';

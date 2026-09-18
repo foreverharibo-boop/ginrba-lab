@@ -59,6 +59,7 @@ const translateStart = index.indexOf('async function translateOutputText(');
 const translateEnd = index.indexOf('function inputIdentitySpellingContext(', translateStart);
 const translateBody = index.slice(translateStart, translateEnd);
 assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') >= 0);
-assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') < translateBody.indexOf('await runMadKoreanTargetedAudit('));
+assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') > translateBody.indexOf('await runMadKoreanTargetedAudit('));
+assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') > translateBody.indexOf('await runExperimentalQualityAudit('));
 
 console.log('PASS: ordinary E→K stays neutral and delegates localization; English-character taste remains separate; Hongjin uses a dedicated second-pass rewrite.');

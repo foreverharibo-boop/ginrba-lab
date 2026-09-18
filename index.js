@@ -51,7 +51,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.100';
+const EXTENSION_VERSION = '0.5.101';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -3979,14 +3979,21 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
         localScopes[segment.id] === 'target_dialogue' ? 'target_dialogue' : 'other_dialogue',
     ]));
 
-    const needsSpeakerIsolation = madKoreanExclusiveMode()
-        ? false
-        : Boolean(
+    // Mad+Hongjin cannot rely only on local spelling matches: a Korean display
+    // name such as 김홍진 may appear romanized as Hong-jin in the source. Run
+    // the classifier whenever any dialogue remains unconfirmed so the voice
+    // pass cannot silently receive zero candidates.
+    const needsHongjinAttribution = madKoreanExclusiveMode()
+        && settings.developerHongjinFlavorEnabled === true
+        && dialogueSegments.some(segment => scopes[segment.id] !== 'target_dialogue');
+    const needsSpeakerIsolation = needsHongjinAttribution || Boolean(
+        !madKoreanExclusiveMode() && (
         (settings.dialoguePromptEnabled !== false && String(settings.dialoguePrompt || '').trim())
         || (settings.otherDialoguePromptEnabled !== false && String(settings.otherDialoguePrompt || '').trim())
         || String(settings.dialogueEndingPreferred || '').trim()
         || String(settings.dialogueEndingAvoid || '').trim()
         || settings.dialogueEndingRepetitionReduction !== false
+        )
     );
     if (!dialogueSegments.length || !needsSpeakerIsolation) return scopes;
 
@@ -4100,12 +4107,12 @@ function splitMadFlashScopeSegments(scope, segments) {
     const rows = Array.from(segments || []);
     if (!rows.length) return [];
     const limits = scope === 'narration'
-        ? { count: 3, chars: 1400 }
+        ? { count: 2, chars: 800 }
         : scope === 'target_dialogue'
-            ? { count: 6, chars: 1200 }
+            ? { count: 4, chars: 700 }
             : scope === 'tagged_content'
-                ? { count: 2, chars: 1200 }
-                : { count: 5, chars: 1200 };
+                ? { count: 2, chars: 800 }
+                : { count: 4, chars: 800 };
     const chunks = [];
     let chunk = [];
     let chars = 0;
@@ -4425,6 +4432,36 @@ function localQualityAuditCandidates(segmented, translations, speakerScopes) {
     return suspects;
 }
 
+function compactComparableText(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/[\s\p{P}\p{S}]+/gu, '');
+}
+
+function hongjinVoiceRewriteFailure(segment, translation, firstPassTranslation = '') {
+    const source = String(segment?.text || '');
+    const target = String(translation || '');
+    const compactSource = compactComparableText(source);
+    const compactTarget = compactComparableText(target);
+    if (!compactTarget) return 'empty';
+    if (compactTarget === compactComparableText(firstPassTranslation)) return 'unchanged-first-pass';
+
+    const sourceWords = (source.match(/[\p{L}\p{N}]+/gu) || []).length;
+    const targetUnits = (target.match(/[가-힣A-Za-z0-9]+/gu) || []).join('').length;
+    if (sourceWords <= 4 && targetUnits <= 5) return 'mirrored-short-fragment';
+
+    if (/^['“”"]*time[.!?]?['“”"]*$/iu.test(source.trim())
+        && /^(?:이제)?시간(?:이다|이야|됐어|됐다)?$/u.test(compactTarget)) {
+        return 'literal-time-fragment';
+    }
+    if (/five\s+more\s+minutes/iu.test(source)
+        && /^(?:딱)?(?:5|오)분만더(?:있어|쉬어)?$/u.test(compactTarget)) {
+        return 'literal-duration-fragment';
+    }
+    return '';
+}
+
 async function runHongjinVoiceRewrite({
     segmented,
     translations,
@@ -4472,7 +4509,8 @@ async function runHongjinVoiceRewrite({
         );
 
         const changed = [];
-        for (const rewritten of rewrittenGroups) {
+        const applyRewrittenGroups = groups => {
+        for (const rewritten of groups) {
             for (const [id, value] of rewritten) {
                 const segment = candidates.find(row => row.id === id);
                 if (!segment) continue;
@@ -4495,6 +4533,54 @@ async function runHongjinVoiceRewrite({
                 );
                 changed.push(segment);
             }
+        }
+        };
+        applyRewrittenGroups(rewrittenGroups);
+
+        let failed = candidates.filter(segment => hongjinVoiceRewriteFailure(
+            segment,
+            translations.get(segment.id),
+            originalTranslations.get(segment.id),
+        ));
+        for (let attempt = 0; failed.length && attempt < 2; attempt += 1) {
+            const retryGroups = await runWithConcurrency(
+                failed,
+                SCOPED_PARALLEL_REQUEST_LIMIT,
+                async segment => {
+                    const prompt = buildHongjinVoiceRewritePrompt({
+                        segments: [segment],
+                        currentTranslations: translations,
+                        sourceContext: scopedSourceContext(segmented, [segment]),
+                        speakerIdentity,
+                        settings,
+                        nameTokens: segmented.nameTokens || [],
+                    });
+                    const reason = hongjinVoiceRewriteFailure(
+                        segment,
+                        translations.get(segment.id),
+                        originalTranslations.get(segment.id),
+                    );
+                    return requestSegments(`${prompt}\n\nAUTOMATIC REJECTION: ${reason}. The previous answer was rejected by code. Produce a structurally different, complete Kim Hong-jin utterance.`, [{
+                        id: segment.id,
+                        type: segment.type,
+                        text: String(translations.get(segment.id) || ''),
+                    }], {
+                        ...options,
+                        parallelRequest: true,
+                        stage: `hongjin-voice-enforced-retry-${attempt + 1}`,
+                    });
+                },
+            );
+            applyRewrittenGroups(retryGroups);
+            failed = candidates.filter(segment => hongjinVoiceRewriteFailure(
+                segment,
+                translations.get(segment.id),
+                originalTranslations.get(segment.id),
+            ));
+        }
+        if (failed.length) {
+            const ids = failed.map(segment => segment.id).join(', ');
+            throw new Error(`김홍진 보이스 강제 재작성 실패: ${ids}`);
         }
 
         if (changed.length) {
@@ -4539,8 +4625,8 @@ async function runHongjinVoiceRewrite({
         if (isAbort(error, options.signal)) throw error;
         translations.clear();
         for (const [id, translation] of originalTranslations) translations.set(id, translation);
-        console.warn('[긴르바 실험실] 김홍진 보이스 전용 패스 실패 — 1차 번역을 유지합니다.', error);
-        return { checked: candidates.length, changed: 0, error };
+        console.error('[긴르바 실험실] 김홍진 보이스 전용 패스 실패 — 직역본을 최종 결과로 채택하지 않습니다.', error);
+        throw error;
     }
 }
 
@@ -5008,14 +5094,6 @@ async function translateOutputText(source, options = {}) {
         );
     }
 
-    await runHongjinVoiceRewrite({
-        segmented,
-        translations,
-        speakerScopes,
-        speakerIdentity,
-        options,
-    });
-
     await runMadKoreanTargetedAudit({
         segmented,
         translations,
@@ -5025,6 +5103,16 @@ async function translateOutputText(source, options = {}) {
     });
 
     await runExperimentalQualityAudit({
+        segmented,
+        translations,
+        speakerScopes,
+        speakerIdentity,
+        options,
+    });
+
+    // Voice rewrite is the final AI writing pass. Earlier audits must not be
+    // allowed to neutralize or overwrite the enforced character result.
+    await runHongjinVoiceRewrite({
         segmented,
         translations,
         speakerScopes,
