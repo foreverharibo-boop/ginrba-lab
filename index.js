@@ -51,7 +51,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.99';
+const EXTENSION_VERSION = '0.5.100';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -652,20 +652,20 @@ function notify(message, type = 'info') {
         if (diagnostic) storeDebugDiagnostic(diagnostic);
         showBottomError(message, diagnostic);
         try {
-            globalThis.toastr?.error?.(message, '베에르으바아');
+            globalThis.toastr?.error?.(message, '긴르바 실험실');
         } catch {
             // Bottom notice above remains the fallback.
         }
-        console.error(`[베에르으바아] ${message}`);
+        console.error(`[긴르바 실험실] ${message}`);
         return;
     }
     const toaster = globalThis.toastr;
     if (toaster && typeof toaster[type] === 'function') {
-        toaster[type](message, '베에르으바아');
+        toaster[type](message, '긴르바 실험실');
         return;
     }
     const logger = type === 'error' ? console.error : type === 'warning' ? console.warn : console.log;
-    logger(`[베에르으바아] ${message}`);
+    logger(`[긴르바 실험실] ${message}`);
 }
 
 function renderOutputTiming() {
@@ -703,7 +703,7 @@ function recordSegmentRecovery(result, response, options, attempt) {
         storeDebugDiagnostic(diagnostic);
         return diagnostic;
     } catch (error) {
-        console.warn('[베에르으바아] 중간 응답 진단 기록 실패', error);
+        console.warn('[긴르바 실험실] 중간 응답 진단 기록 실패', error);
         return null;
     }
 }
@@ -733,7 +733,7 @@ function recordProtectedRecovery(invalid, segmented, translations, options) {
         storeDebugDiagnostic(diagnostic);
         return diagnostic;
     } catch (error) {
-        console.warn('[베에르으바아] 보호 표식 진단 기록 실패', error);
+        console.warn('[긴르바 실험실] 보호 표식 진단 기록 실패', error);
         return null;
     }
 }
@@ -750,7 +750,7 @@ function finishProtectedRecovery(diagnostic, status, started, attempts, remainin
         // Preserve this evidence when the existing final-error UI replaces the log.
         if (error && typeof error === 'object') error.verbaDeepProtectedRecovery = diagnostic.protectedRecovery;
     } catch (diagnosticError) {
-        console.warn('[베에르으바아] 보호 표식 결과 기록 실패', diagnosticError);
+        console.warn('[긴르바 실험실] 보호 표식 결과 기록 실패', diagnosticError);
     }
 }
 
@@ -817,7 +817,7 @@ function createDebugDiagnostic(stage = 'unknown', error = null, displayMessage =
 
 function debugDiagnosticText(diagnostic) {
     if (!diagnostic) return '';
-    return `베에르으바아 오류 진단\n${JSON.stringify(diagnostic, null, 2)}`;
+    return `긴르바 실험실 오류 진단\n${JSON.stringify(diagnostic, null, 2)}`;
 }
 
 async function copyDebugDiagnostic(diagnostic = lastDebugDiagnostic) {
@@ -834,11 +834,11 @@ function reportError(stage, error, displayMessage = '') {
     // normal error toast so a translation failure can never end silently.
     showBottomError(message, diagnostic);
     try {
-        globalThis.toastr?.error?.(message, '베에르으바아');
+        globalThis.toastr?.error?.(message, '긴르바 실험실');
     } catch {
         // Bottom notice above remains the fallback.
     }
-    console.error(`[베에르으바아] ${stage}`, error || message);
+    console.error(`[긴르바 실험실] ${stage}`, error || message);
 }
 
 function compactPromptConflictExcerpt(value, limit = 72) {
@@ -933,7 +933,7 @@ function showBottomError(message, diagnostic = null) {
     notice.setAttribute('role', 'alert');
     const text = document.createElement('span');
     text.className = 'verba-deep-error-text';
-    text.textContent = `베에르으바아 · ${String(message || '오류가 발생했습니다.')}`;
+    text.textContent = `긴르바 실험실 · ${String(message || '오류가 발생했습니다.')}`;
     const actions = document.createElement('div');
     actions.className = 'verba-deep-error-actions';
     const close = document.createElement('button');
@@ -967,7 +967,7 @@ function updateServerRetryIndicator() {
         indicator.setAttribute('aria-live', 'polite');
         indicator.addEventListener('click', () => {
             indicator.disabled = true;
-            indicator.textContent = '베에르으바아 · 번역 재시도 취소 중…';
+            indicator.textContent = '긴르바 실험실 · 번역 재시도 취소 중…';
             for (const retry of serverRetryStates.values()) retry.controller.abort();
             notify('번역 자동 재시도를 취소했어요.', 'info');
         });
@@ -975,14 +975,14 @@ function updateServerRetryIndicator() {
     }
     const timing = state.delayMs > 0 ? `${Math.ceil(state.delayMs / 1000)}초 후` : '요청 중';
     indicator.disabled = false;
-    indicator.textContent = `베에르으바아 · 번역 실패 · ${state.retryCount}/${state.maxRetries}회 ${timing} 재시도 · ✕`;
+    indicator.textContent = `긴르바 실험실 · 번역 실패 · ${state.retryCount}/${state.maxRetries}회 ${timing} 재시도 · ✕`;
     indicator.title = '눌러서 번역 자동 재시도 취소';
     indicator.setAttribute('aria-label', indicator.title);
 }
 
 function showProgress(message, options = {}) {
     if (!globalThis.toastr?.info) return null;
-    const toast = globalThis.toastr.info(message, '베에르으바아', {
+    const toast = globalThis.toastr.info(message, '긴르바 실험실', {
         timeOut: 0,
         extendedTimeOut: 0,
         tapToDismiss: false,
@@ -2360,9 +2360,9 @@ function scheduleChatSave(chatReference) {
         const context = liveContext();
         if (context.chat !== chatReference) return;
         try {
-            context.saveChat?.()?.catch?.(error => console.warn('[베에르으바아] 채팅 저장 실패', error));
+            context.saveChat?.()?.catch?.(error => console.warn('[긴르바 실험실] 채팅 저장 실패', error));
         } catch (error) {
-            console.warn('[베에르으바아] 채팅 저장 실패', error);
+            console.warn('[긴르바 실험실] 채팅 저장 실패', error);
         }
     }, 250);
 }
@@ -2476,14 +2476,14 @@ function loadLocalProfileStats(fallback = null) {
         const raw = globalThis.localStorage?.getItem(PROFILE_STATS_STORAGE_KEY);
         if (raw) stored = JSON.parse(raw);
     } catch (error) {
-        console.warn('[베에르으바아] 프로필 성능 기록 로컬 불러오기 실패', error);
+        console.warn('[긴르바 실험실] 프로필 성능 기록 로컬 불러오기 실패', error);
     }
 
     const normalized = normalizeProfileStats(stored ?? fallback);
     try {
         globalThis.localStorage?.setItem(PROFILE_STATS_STORAGE_KEY, JSON.stringify(normalized));
     } catch (error) {
-        console.warn('[베에르으바아] 프로필 성능 기록 로컬 저장 실패', error);
+        console.warn('[긴르바 실험실] 프로필 성능 기록 로컬 저장 실패', error);
     }
     return normalized;
 }
@@ -2493,7 +2493,7 @@ function saveLocalProfileStats() {
     try {
         globalThis.localStorage?.setItem(PROFILE_STATS_STORAGE_KEY, JSON.stringify(profileStatsState));
     } catch (error) {
-        console.warn('[베에르으바아] 프로필 성능 기록 로컬 저장 실패', error);
+        console.warn('[긴르바 실험실] 프로필 성능 기록 로컬 저장 실패', error);
     }
 }
 
@@ -3066,7 +3066,7 @@ async function sendWithRetry(prompt, options = {}) {
                 if (profiles.fallbacks.length && fallbackEligibleError(primaryError)) {
                     for (const fallback of profiles.fallbacks) {
                         console.warn(
-                            `[베에르으바아] 현재 선택 프로필 실패 — 프로필 ${fallback.slot} ${profileDisplayName(fallback.id)}(으)로 임시 전환`,
+                            `[긴르바 실험실] 현재 선택 프로필 실패 — 프로필 ${fallback.slot} ${profileDisplayName(fallback.id)}(으)로 임시 전환`,
                             errors.at(-1),
                         );
                         try {
@@ -3081,7 +3081,7 @@ async function sendWithRetry(prompt, options = {}) {
                             return response;
                         } catch (fallbackError) {
                             if (isAbort(fallbackError, controller.signal)) throw fallbackError;
-                            console.warn(`[베에르으바아] 연결 프로필 ${fallback.slot} 요청도 실패했습니다.`, fallbackError);
+                            console.warn(`[긴르바 실험실] 연결 프로필 ${fallback.slot} 요청도 실패했습니다.`, fallbackError);
                             errors.push(fallbackError);
                         }
                     }
@@ -3111,7 +3111,7 @@ async function sendWithRetry(prompt, options = {}) {
                 updateServerRetryIndicator();
 
                 console.warn(
-                    `[베에르으바아] 번역 요청 실패 — ${state.retryCount}/${state.maxRetries}회 재시도 예정`,
+                    `[긴르바 실험실] 번역 요청 실패 — ${state.retryCount}/${state.maxRetries}회 재시도 예정`,
                     cycleError,
                 );
 
@@ -3192,7 +3192,7 @@ Do not add markdown fences, commentary, explanations, or extra ids.`
         if (attempt === maxRetries) break;
 
         console.warn(
-            `[베에르으바아] 번역 결과 일부 실패 — 성공 구간 ${completed.size}개 유지, 남은 ${pending.length}개만 ${attempt + 1}/${maxRetries}회 재시도`,
+            `[긴르바 실험실] 번역 결과 일부 실패 — 성공 구간 ${completed.size}개 유지, 남은 ${pending.length}개만 ${attempt + 1}/${maxRetries}회 재시도`,
             lastError,
         );
         try {
@@ -3308,7 +3308,7 @@ Do not add markdown fences, commentary, or explanations.`
             if (attempt === maxRetries) break;
 
             console.warn(
-                `[베에르으바아] 선택 재번역 후보 해석 실패 — ${attempt + 1}/${maxRetries}회 재시도`,
+                `[긴르바 실험실] 선택 재번역 후보 해석 실패 — ${attempt + 1}/${maxRetries}회 재시도`,
                 error,
             );
             await wait(parseRetryDelays[attempt], options.signal);
@@ -3482,7 +3482,7 @@ async function planRepeatedRoleTermLocks(segmented, options = {}) {
         return locks;
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
-        console.warn('[베에르으바아] 반복 직책 표기 계획에 실패하여 번역 후 보정으로 전환합니다.', error);
+        console.warn('[긴르바 실험실] 반복 직책 표기 계획에 실패하여 번역 후 보정으로 전환합니다.', error);
         return [];
     }
 }
@@ -3541,7 +3541,7 @@ async function repairRepeatedRoleTermConsistency(segmented, translations, option
         }
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
-        console.warn('[베에르으바아] 반복 직책 표기 통일을 완료하지 못해 기존 번역을 유지합니다.', error);
+        console.warn('[긴르바 실험실] 반복 직책 표기 통일을 완료하지 못해 기존 번역을 유지합니다.', error);
     }
 }
 
@@ -4014,7 +4014,7 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
         if (isAbort(error, options.signal)) throw error;
         // Conservative fallback is NOT cached. A later retranslation may
         // successfully classify the speakers.
-        console.warn('[베에르으바아] 대사 화자 분류 실패 — 캐릭터 전용 프롬프트를 보수적으로 제외합니다.', error);
+        console.warn('[긴르바 실험실] 대사 화자 분류 실패 — 캐릭터 전용 프롬프트를 보수적으로 제외합니다.', error);
         debugCaptureError?.(error, 'speaker-attribution');
     }
 
@@ -4065,7 +4065,7 @@ async function requestScopedGroupTranslations({
             if (!missing.length) return recovered;
 
             console.warn(
-                `[베에르으바아] ${scope} 범위에서 ${recovered.size}개 성공 구간은 유지하고, 실패한 ${missing.length}개 구간만 개별 복구합니다.`,
+                `[긴르바 실험실] ${scope} 범위에서 ${recovered.size}개 성공 구간은 유지하고, 실패한 ${missing.length}개 구간만 개별 복구합니다.`,
                 error,
             );
 
@@ -4280,7 +4280,7 @@ async function repairProtectedTokenIntegrity(segmented, translations, options = 
                 return;
             }
         }
-        console.error('[베에르으바아] 보호 요소 자동 복구 실패', invalid.map(row => row.id));
+        console.error('[긴르바 실험실] 보호 요소 자동 복구 실패', invalid.map(row => row.id));
         throw new Error('보호 요소 자동 복구에 실패했습니다. 다시 번역해 주세요.');
     } catch (error) {
         const remaining = findProtectedTokenIntegrityProblems(segmented.segments, translations);
@@ -4533,13 +4533,13 @@ async function runHongjinVoiceRewrite({
             });
         }
 
-        console.info(`[베에르으바아] 김홍진 보이스 전용 패스 완료: ${candidates.length}구간 · ${changed.length}구간 재작성`);
+        console.info(`[긴르바 실험실] 김홍진 보이스 전용 패스 완료: ${candidates.length}구간 · ${changed.length}구간 재작성`);
         return { checked: candidates.length, changed: changed.length };
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         translations.clear();
         for (const [id, translation] of originalTranslations) translations.set(id, translation);
-        console.warn('[베에르으바아] 김홍진 보이스 전용 패스 실패 — 1차 번역을 유지합니다.', error);
+        console.warn('[긴르바 실험실] 김홍진 보이스 전용 패스 실패 — 1차 번역을 유지합니다.', error);
         return { checked: candidates.length, changed: 0, error };
     }
 }
@@ -4599,7 +4599,7 @@ async function runMadKoreanTargetedAudit({
             for (const [id, translation] of group) reviewed.set(id, translation);
         }
         if (!reviewed.size) {
-            console.info(`[베에르으바아] 미친 한출 부분 검수 완료: ${candidates.length}구간 확인 · 수정 없음`);
+            console.info(`[긴르바 실험실] 미친 한출 부분 검수 완료: ${candidates.length}구간 확인 · 수정 없음`);
             return { checked: candidates.length, changed: 0 };
         }
 
@@ -4662,13 +4662,13 @@ async function runMadKoreanTargetedAudit({
             });
         }
 
-        console.info(`[베에르으바아] 미친 한출 부분 검수 완료: ${candidates.length}구간 확인 · ${changed.length}구간 수정`);
+        console.info(`[긴르바 실험실] 미친 한출 부분 검수 완료: ${candidates.length}구간 확인 · ${changed.length}구간 수정`);
         return { checked: candidates.length, changed: changed.length };
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         translations.clear();
         for (const [id, translation] of originalTranslations) translations.set(id, translation);
-        console.warn('[베에르으바아] 미친 한출 부분 검수 실패 — 1차 번역을 유지합니다.', error);
+        console.warn('[긴르바 실험실] 미친 한출 부분 검수 실패 — 1차 번역을 유지합니다.', error);
         return { checked: candidates.length, changed: 0, error };
     }
 }
@@ -4777,13 +4777,13 @@ async function runExperimentalQualityAudit({
 
         lastQualityAuditSummary = `AI 통합 검수 ${candidates.length}구간 · 수정 ${changed.length}구간 · ${categories.join('/')}`;
         renderQualityAuditStatus();
-        console.info(`[베에르으바아] 품질 검수 완료: ${lastQualityAuditSummary}`);
+        console.info(`[긴르바 실험실] 품질 검수 완료: ${lastQualityAuditSummary}`);
         return { checked: candidates.length, changed: changed.length };
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         lastQualityAuditSummary = '검수 실패 · 원래 번역 유지';
         renderQualityAuditStatus();
-        console.warn('[베에르으바아] 개발자 품질 검수 실패 — 기존 번역을 그대로 유지합니다.', error);
+        console.warn('[긴르바 실험실] 개발자 품질 검수 실패 — 기존 번역을 그대로 유지합니다.', error);
         return { checked: candidates.length, changed: 0, error };
     }
 }
@@ -4894,7 +4894,7 @@ async function inferredPrimaryIdentityNameLocks(source, speakerIdentity = {}, op
         });
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
-        console.warn('[베에르으바아] 현재 캐릭터·페르소나 이름 확인에 실패하여 기존 이름 규칙으로 계속합니다.', error);
+        console.warn('[긴르바 실험실] 현재 캐릭터·페르소나 이름 확인에 실패하여 기존 이름 규칙으로 계속합니다.', error);
         unresolved.forEach(row => setBoundedCache(identityNameFallbackCache, row.cacheKey, '', 120));
     }
     return planned;
@@ -5061,7 +5061,7 @@ async function translateOutputText(source, options = {}) {
         if (untranslated.length === segmented.segments.length) {
             throw new Error('전체 번역 결과가 외국어 원문으로 남아 번역을 적용하지 않았습니다.');
         }
-        console.warn('[베에르으바아] 일부 구간의 미번역 의심이 해소되지 않아 나머지 번역 결과를 우선 적용합니다.', untranslated);
+        console.warn('[긴르바 실험실] 일부 구간의 미번역 의심이 해소되지 않아 나머지 번역 결과를 우선 적용합니다.', untranslated);
     }
     const assembled = assembleTranslation(segmented, translations);
     const result = repairStrictCanonicalIdentityNames(assembled, speakerIdentity);
@@ -5466,7 +5466,7 @@ function renderVerbaDeepDisplayFallback(messageId, message, mounted = null) {
         setTimeout(refreshTranslationClasses, 0);
         return true;
     } catch (error) {
-        console.error(`[베에르으바아] 메시지 #${id} 직접 표시 fallback 실패`, error);
+        console.error(`[긴르바 실험실] 메시지 #${id} 직접 표시 fallback 실패`, error);
         textElement.classList.add('verba-deep-render-fallback-failed');
         return false;
     }
@@ -5491,14 +5491,14 @@ function updateMessageBlock(messageId, message) {
         return { status: 'updated', rendered: true };
     } catch (error) {
         console.warn(
-            `[베에르으바아] SillyTavern 메시지 #${id} 전체 재렌더링 실패 — 베에르으바아 직접 표시 fallback을 시도합니다.`,
+            `[긴르바 실험실] SillyTavern 메시지 #${id} 전체 재렌더링 실패 — 긴르바 실험실 직접 표시 fallback을 시도합니다.`,
             error,
         );
 
         const fallbackRendered = renderVerbaDeepDisplayFallback(id, message, mounted);
         if (fallbackRendered) {
             console.warn(
-                `[베에르으바아] 메시지 #${id}는 ST 전체 렌더러 대신 베에르으바아 직접 표시 fallback으로 적용했습니다.`,
+                `[긴르바 실험실] 메시지 #${id}는 ST 전체 렌더러 대신 긴르바 실험실 직접 표시 fallback으로 적용했습니다.`,
             );
             return {
                 status: 'fallback',
@@ -5868,7 +5868,7 @@ async function translateMessage(messageId, options = {}) {
     if (!source.trim()) return;
 
     if (options.automatic && isPredominantlyKorean(source)) {
-        console.log(`[베에르으바아] 한국어 중심 출력 자동 제외 #${id}`);
+        console.log(`[긴르바 실험실] 한국어 중심 출력 자동 제외 #${id}`);
         return;
     }
     if (!hasForeignText(source)) {
@@ -6024,9 +6024,9 @@ async function translateMessage(messageId, options = {}) {
 
                 if (allowedSilentAbort) {
                     if (silentCode === 'VERBA_DEEP_OUTPUT_USER_CANCELLED') {
-                        console.info('[베에르으바아] 사용자가 출력 번역 요청을 취소했습니다.');
+                        console.info('[긴르바 실험실] 사용자가 출력 번역 요청을 취소했습니다.');
                     } else {
-                        console.info(`[베에르으바아] 의도된 내부 번역 교체/전환으로 작업 종료: ${silentCode}`);
+                        console.info(`[긴르바 실험실] 의도된 내부 번역 교체/전환으로 작업 종료: ${silentCode}`);
                     }
                     outputJobSuperseded = true;
                     outputJobSuccess = false;
@@ -6035,20 +6035,20 @@ async function translateMessage(messageId, options = {}) {
                     outputJobSuccess = false;
                     failedOutputSignatures.set(id, `${snapshot.swipeId ?? 'none'}:${snapshot.sourceHash}`);
                     const reasonMessage = String(reason?.message || error?.message || '알 수 없는 이유');
-                    console.warn('[베에르으바아] 출력 번역 중단', reason || error);
+                    console.warn('[긴르바 실험실] 출력 번역 중단', reason || error);
                     reportError('output-aborted', reason || error, `출력 번역 중단: ${reasonMessage}`);
                 }
             } else {
                 outputJobSuccess = false;
                 failedOutputSignatures.set(id, `${snapshot.swipeId ?? 'none'}:${snapshot.sourceHash}`);
-                console.error('[베에르으바아] 출력 번역 실패', error);
+                console.error('[긴르바 실험실] 출력 번역 실패', error);
                 reportError(options.force ? 'output-retranslation' : 'output-translation', error, `출력 번역 실패: ${errorText(error)}`);
             }
         } finally {
             if (outputJobSuccess === null && !controller.signal.aborted && !outputJobSuperseded) {
                 outputJobSuccess = false;
                 failedOutputSignatures.set(id, `${snapshot.swipeId ?? 'none'}:${snapshot.sourceHash}`);
-                console.error('[베에르으바아] 출력 번역이 결과 없이 종료되었습니다.');
+                console.error('[긴르바 실험실] 출력 번역이 결과 없이 종료되었습니다.');
                 reportError('output-no-result', new Error('출력 번역 작업이 결과 없이 종료되었습니다.'), '출력 번역 실패: 작업이 결과 없이 종료되었습니다. 다시 시도해 주세요.');
             }
             if (outputJobSuccess !== null && !outputJobSuperseded) {
@@ -6897,7 +6897,7 @@ function visiblePreviousOutputPreview(target) {
             .trim();
         if (rendered) return rendered;
     } catch (error) {
-        console.warn('[베에르으바아] 이전 아웃풋 미리보기 렌더링 실패', error);
+        console.warn('[긴르바 실험실] 이전 아웃풋 미리보기 렌더링 실패', error);
     }
 
     return String(displayText || '')
@@ -7431,7 +7431,7 @@ async function jumpToOutputMessage(messageId) {
         try {
             await showMoreMessages(amount);
         } catch (error) {
-            console.warn('[베에르으바아] 이전 메시지 자동 불러오기 실패', error);
+            console.warn('[긴르바 실험실] 이전 메시지 자동 불러오기 실패', error);
             break;
         }
 
@@ -7473,7 +7473,7 @@ async function jumpToOutputMessage(messageId) {
             chatScroller.scrollTo({ top: targetTop, behavior: 'smooth' });
             scrolled = true;
         } catch (error) {
-            console.warn('[베에르으바아] 채팅 컨테이너 직접 이동 실패 — 기본 이동으로 전환합니다.', error);
+            console.warn('[긴르바 실험실] 채팅 컨테이너 직접 이동 실패 — 기본 이동으로 전환합니다.', error);
         }
     }
 
@@ -7601,7 +7601,7 @@ async function translateInputAndSend(textarea, sendButton, source) {
         sendButton.click();
     } catch (error) {
         if (!isAbort(error)) {
-            console.error('[베에르으바아] 인풋 번역 실패', error);
+            console.error('[긴르바 실험실] 인풋 번역 실패', error);
             reportError('input-translate-and-send', error, `인풋 번역 실패로 전송하지 않았어요: ${errorText(error)}`);
         }
     } finally {
@@ -7647,7 +7647,7 @@ async function translateInputBeforeGeneration(type, _options, dryRun) {
         setTextareaValue(textarea, translated);
     } catch (error) {
         if (!isAbort(error)) {
-            console.error('[베에르으바아] 생성 전 인풋 번역 실패', error);
+            console.error('[긴르바 실험실] 생성 전 인풋 번역 실패', error);
             reportError('input-before-generation', error, `인풋 번역 실패로 생성을 중단했어요: ${errorText(error)}`);
         }
         blockGenerationAndRestore(textarea, source);
@@ -7681,7 +7681,7 @@ async function translateSentInputMessage(payload) {
             scheduleChatSave(context.chat);
         } catch (error) {
             if (!isAbort(error)) {
-                console.error('[베에르으바아] 전송된 인풋 번역 실패', error);
+                console.error('[긴르바 실험실] 전송된 인풋 번역 실패', error);
                 reportError('sent-input-translation', error, `인풋 번역 실패로 뒤따르는 생성을 중단했어요: ${errorText(error)}`);
             }
             try {
@@ -8960,7 +8960,7 @@ Your previous response echoed the existing Korean wording for these ids: ${JSON.
         notify(`${replacements.length}개 구간을 한꺼번에 교체했어요.`, 'success');
     } catch (error) {
         if (!isAbort(error, controller.signal)) {
-            console.error('[베에르으바아] 묶음 재번역 실패', error);
+            console.error('[긴르바 실험실] 묶음 재번역 실패', error);
             reportError('bundle-retranslation', error, `묶음 재번역 실패: ${errorText(error)}`);
         }
     } finally {
@@ -9031,7 +9031,7 @@ async function lockSelectionName(snapshot) {
                 );
             } catch (error) {
                 if (isAbort(error, controller.signal)) throw error;
-                console.warn('[베에르으바아] 이전 이름 표기 자동 탐색 실패 — 확인된 표기만 변경합니다.', error);
+                console.warn('[긴르바 실험실] 이전 이름 표기 자동 탐색 실패 — 확인된 표기만 변경합니다.', error);
             } finally {
                 clearProgress(toast);
                 toast = null;
@@ -9063,7 +9063,7 @@ async function lockSelectionName(snapshot) {
         notify(`${sourceName}의 표기를 “${targetName}”로 이 캐릭터에 저장했어요.${historyNotice}`, 'success');
     } catch (error) {
         if (!isAbort(error, controller.signal)) {
-            console.error('[베에르으바아] 이름 고정 실패', error);
+            console.error('[긴르바 실험실] 이름 고정 실패', error);
             reportError('name-lock', error, `이름 고정 실패: ${errorText(error)}`);
         }
     } finally {
@@ -9209,7 +9209,7 @@ Your previous replacement was empty or unchanged. Return a genuinely different K
         notify(candidateMode ? '선택한 후보로 번역을 교체했어요.' : '선택한 부분만 다시 번역했어요.', 'success');
     } catch (error) {
         if (!isAbort(error, controller.signal)) {
-            console.error('[베에르으바아] 선택 부분 재번역 실패', error);
+            console.error('[긴르바 실험실] 선택 부분 재번역 실패', error);
             reportError('selection-retranslation', error, `선택 부분 재번역 실패: ${errorText(error)}`);
         }
     } finally {
@@ -9613,7 +9613,7 @@ function showTranslationProfileChoice() {
     }
     const configured = configuredProfiles();
     if (!configured.length) {
-        notify('베에르으바아 설정에서 연결 프로필을 먼저 선택해 주세요.', 'warning');
+        notify('긴르바 실험실 설정에서 연결 프로필을 먼저 선택해 주세요.', 'warning');
         return;
     }
     const current = configuredProfileCycle().slot;
@@ -9621,7 +9621,7 @@ function showTranslationProfileChoice() {
     menu.id = 'verba-deep-profile-choice';
     menu.className = 'verba-deep-retranslate-target-menu';
     menu.setAttribute('role', 'group');
-    menu.setAttribute('aria-label', '베에르으바아 번역 프로필 선택');
+    menu.setAttribute('aria-label', '긴르바 실험실 번역 프로필 선택');
     let closed = false;
     const close = () => {
         if (closed) return;
@@ -9679,11 +9679,11 @@ function registerVerbaDeepProfileSlashCommand() {
                 return '';
             },
             returns: '빈 문자열. 번역 프로필 선택창을 엽니다.',
-            helpString: '<div>베에르으바아의 A·B·C 번역 프로필을 고릅니다. 현재 슬롯은 ✓로 표시되며, 미설정·중복 슬롯은 선택할 수 없습니다. 빠른답장에 <code>/verba-deep-profile</code>만 입력하세요.</div>',
+            helpString: '<div>긴르바 실험실의 A·B·C 번역 프로필을 고릅니다. 현재 슬롯은 ✓로 표시되며, 미설정·중복 슬롯은 선택할 수 없습니다. 빠른답장에 <code>/verba-deep-profile</code>만 입력하세요.</div>',
         }));
         verbaProfileSlashCommandRegistered = true;
     } catch (error) {
-        console.error('[베에르으바아] /verba-deep-profile 등록 실패', error);
+        console.error('[긴르바 실험실] /verba-deep-profile 등록 실패', error);
     }
 }
 
@@ -9749,9 +9749,9 @@ function refreshRetranslateButton() {
     button.classList.toggle('verba-deep-retry-needed', failed && !busy);
     const translated = target ? Boolean(currentRecord(target.message)) : false;
     button.title = cancelling
-        ? '베에르으바아 번역 취소 중'
+        ? '긴르바 실험실 번역 취소 중'
         : busy
-            ? '베에르으바아 번역 중 · 눌러서 모두 취소'
+            ? '긴르바 실험실 번역 중 · 눌러서 모두 취소'
             : failed || !translated
                 ? '최근 아웃풋 번역 또는 다시 시도'
                 : '아웃풋 재번역 · 최근/이전 선택';
@@ -9770,7 +9770,7 @@ async function runOutputAction() {
     try {
         await retranslateLatestOutput();
     } catch (error) {
-        console.error('[베에르으바아] 아웃풋 버튼 실행 실패', error);
+        console.error('[긴르바 실험실] 아웃풋 버튼 실행 실패', error);
         reportError('output-action', error, `아웃풋 동작 실패: ${errorText(error)}`);
     } finally {
         if (!busy) outputActionPending = false;
@@ -9781,7 +9781,7 @@ function registerVerbaDeepSlashCommand() {
     if (verbaSlashCommandRegistered) return;
     const { SlashCommandParser, SlashCommand } = liveContext();
     if (!SlashCommandParser?.addCommandObject || !SlashCommand?.fromProps) {
-        console.warn('[베에르으바아] 슬래시 명령어 API가 없어 /verba-deep을 등록하지 못했습니다.');
+        console.warn('[긴르바 실험실] 슬래시 명령어 API가 없어 /verba-deep을 등록하지 못했습니다.');
         return;
     }
     try {
@@ -9798,7 +9798,7 @@ function registerVerbaDeepSlashCommand() {
         }));
         verbaSlashCommandRegistered = true;
     } catch (error) {
-        console.error('[베에르으바아] /verba-deep 등록 실패', error);
+        console.error('[긴르바 실험실] /verba-deep 등록 실패', error);
     }
 }
 
@@ -9882,7 +9882,7 @@ function renderNameLockManager() {
 
     const groups = allCharacterNameLockGroups();
     content.innerHTML = `
-        <div class="verba-deep-help">모든 캐릭터 카드에 저장된 베에르으바아 이름을 불러옵니다. 일반 단어나 문장은 표시하지 않아요.</div>
+        <div class="verba-deep-help">모든 캐릭터 카드에 저장된 긴르바 실험실 이름을 불러옵니다. 일반 단어나 문장은 표시하지 않아요.</div>
         <div class="verba-deep-name-lock-list">
             ${groups.length ? groups.map((group, groupIndex) => `
                 <section class="verba-deep-name-lock-group" data-group-index="${groupIndex}">
@@ -10194,12 +10194,12 @@ function developerSettingsMarkup() {
                                 <input type="checkbox" id="verba-deep-developer-compressed-prompt-enabled" ${settings.developerCompressedPromptEnabled ? 'checked' : ''}>
                                 <span>압축 프롬프트 사용</span>
                             </label>
-                            <div class="verba-deep-help">베에르으바아 내부의 반복 지침만 짧게 합칩니다. 직접 작성한 프롬프트는 줄이지 않으며 번역 품질이 달라질 수 있는 테스트 기능입니다.</div>
+                            <div class="verba-deep-help">긴르바 실험실 내부의 반복 지침만 짧게 합칩니다. 직접 작성한 프롬프트는 줄이지 않으며 번역 품질이 달라질 수 있는 테스트 기능입니다.</div>
                             <label class="verba-deep-check-row">
                                 <input type="checkbox" id="verba-deep-developer-extreme-compressed-prompt-enabled" ${settings.developerExtremeCompressedPromptEnabled ? 'checked' : ''}>
                                 <span>xxx미친압축xxx</span>
                             </label>
-                            <div class="verba-deep-help">한출·김홍진과 일반 출력·입력·재번역·복구·검수의 베에르으바아 내부 지침을 극단적으로 줄입니다. 직접 작성한 지침 내용은 보존하며 결과 품질이 달라질 수 있습니다.</div>
+                            <div class="verba-deep-help">한출·김홍진과 일반 출력·입력·재번역·복구·검수의 긴르바 실험실 내부 지침을 극단적으로 줄입니다. 직접 작성한 지침 내용은 보존하며 결과 품질이 달라질 수 있습니다.</div>
                         </div>
                     </details>
 
@@ -10372,7 +10372,7 @@ function injectSettingsPanel() {
     panel.innerHTML = `
         <div class="inline-drawer">
             <div class="inline-drawer-toggle inline-drawer-header verba-deep-drawer-header">
-                <div><b>베에르으바아</b></div>
+                <div><b>긴르바 실험실</b></div>
                 <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
             </div>
             <div class="inline-drawer-content" style="display: none;">
@@ -10582,7 +10582,7 @@ function injectSettingsPanel() {
                     <summary>프롬프트 충돌 확인 <small id="verba-deep-prompt-conflict-count">충돌 없음</small></summary>
                     <div class="verba-deep-tool-details-content">
                         <div id="verba-deep-prompt-conflict-content" class="verba-deep-prompt-conflict-content"></div>
-                        <div class="verba-deep-help">전역·모든 대사 공통·캐릭터 전용·NPC·USER 전용 프롬프트에서 베에르으바아가 명백한 충돌로 판단한 실제 문구를 보여줘요. 검사는 로컬에서만 하며 API를 호출하지 않습니다.</div>
+                        <div class="verba-deep-help">전역·모든 대사 공통·캐릭터 전용·NPC·USER 전용 프롬프트에서 긴르바 실험실가 명백한 충돌로 판단한 실제 문구를 보여줘요. 검사는 로컬에서만 하며 API를 호출하지 않습니다.</div>
                         <button type="button" id="verba-deep-refresh-prompt-conflicts" class="menu_button verba-deep-wide">지금 다시 확인</button>
                     </div>
                 </details>
@@ -10840,7 +10840,7 @@ function injectSettingsPanel() {
                                 <div class="verba-deep-help">여러 개를 같이 골라도 됩니다. 서로 다른 면이 함께 선택되면 원문 상황에 맞는 성격 면을 우선해 말투에 반영합니다.</div>
                                 <label for="verba-deep-beginner-personality-custom">성격 직접 입력 <small>선택 보완용</small></label>
                                 <textarea id="verba-deep-beginner-personality-custom" class="text_pole" rows="2" maxlength="240" placeholder="예: 까칠하지만 은근히 정이 많고, 자존심이 세며 감정 표현이 서툼">${escapeHtml(settings.beginnerPersonalityCustom)}</textarea>
-                                <div class="verba-deep-help">프롬프트 문법 없이 평범한 문장으로 적으면 됩니다. 베에르으바아가 말투 참고용 설명으로만 감싸서 사용합니다.</div>
+                                <div class="verba-deep-help">프롬프트 문법 없이 평범한 문장으로 적으면 됩니다. 긴르바 실험실가 말투 참고용 설명으로만 감싸서 사용합니다.</div>
                             </section>
 
                             <section class="verba-deep-beginner-group">
@@ -11435,7 +11435,7 @@ function injectSettingsPanel() {
             await copyDebugDiagnostic();
             notify('마지막 오류 로그를 복사했어요.', 'success');
         } catch (error) {
-            console.error('[베에르으바아] 최근 오류 진단 복사 실패', error);
+            console.error('[긴르바 실험실] 최근 오류 진단 복사 실패', error);
             notify(lastDebugDiagnostic ? '로그 복사에 실패했어요. 클립보드 권한을 확인해 주세요.' : '복사할 최근 오류 로그가 없어요.', 'warning');
         }
     });
@@ -11444,7 +11444,7 @@ function injectSettingsPanel() {
         const record = outputTiming.latest();
         if (!settings.debugMode || !record) return;
         try {
-            await copyText(`베에르으바아 v${EXTENSION_VERSION}\n${outputTimingText(record)}`);
+            await copyText(`긴르바 실험실 v${EXTENSION_VERSION}\n${outputTimingText(record)}`);
             notify('마지막 번역 소요 시간을 복사했어요.', 'success');
         } catch {
             notify('복사하지 못했어요. 클립보드 권한을 확인해 주세요.', 'warning');
@@ -12320,7 +12320,7 @@ function scheduleRecentInsteadRevisionTranslations(delay = 180) {
         if (insteadRevisionTranslationSeen.has(key)) return;
 
         insteadRevisionTranslationSeen.set(key, now);
-        console.info(`[베에르으바아] inSTead 새 revision 감지 #${id} swipe ${meta.swipeId ?? '?'} — 자동 번역 예약`);
+        console.info(`[긴르바 실험실] inSTead 새 revision 감지 #${id} swipe ${meta.swipeId ?? '?'} — 자동 번역 예약`);
         scheduleAutomaticTranslation(id, delay, { insteadRevision: true });
     });
 
@@ -12640,7 +12640,7 @@ function initialize() {
     }, 300);
     setTimeout(() => scheduleFreshMountedAssistantTranslations(220), 900);
     globalThis.__verbaDeepTranslatorVersion = EXTENSION_VERSION;
-    console.log(`[베에르으바아] v${EXTENSION_VERSION} 준비 완료`);
+    console.log(`[긴르바 실험실] v${EXTENSION_VERSION} 준비 완료`);
 }
 
 if (document.readyState === 'loading') {

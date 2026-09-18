@@ -53,7 +53,7 @@ export function baseTranslationEditorMarkup(state) {
     return `<details id="verba-deep-base-editor" class="verba-deep-tool-details">
         <summary>🧪 기본 번역 지침 편집 <small>전용 프리셋</small></summary>
         <div class="verba-deep-tool-details-content">
-            <div class="verba-deep-help">베에르으바아가 모든 아웃풋 번역에 기본으로 보내는 번역 지침입니다. 필수 출력 형식·구간 처리와 기존 사용자 프롬프트·미세조정·이름 고정·금지어는 베에르으바아가 별도로 붙입니다.</div>
+            <div class="verba-deep-help">긴르바 실험실가 모든 아웃풋 번역에 기본으로 보내는 번역 지침입니다. 필수 출력 형식·구간 처리와 기존 사용자 프롬프트·미세조정·이름 고정·금지어는 긴르바 실험실가 별도로 붙입니다.</div>
             <label class="verba-deep-check-row"><input id="verba-deep-base-enabled" type="checkbox" ${state.enabled ? 'checked' : ''}><span>저장한 기본 지침 사용</span></label>
             <div class="verba-deep-help">개발자 모드를 끄면 기본값을 사용합니다. 편집 내용과 전용 프리셋은 보관됩니다.</div>
             <select id="verba-deep-base-preset" class="text_pole" aria-label="기본 지침 전용 프리셋">

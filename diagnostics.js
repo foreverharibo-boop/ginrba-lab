@@ -124,7 +124,7 @@ export function classifyDebugError(chain, displayMessage = '') {
     if (/Failed to fetch|NetworkError|ECONNRESET|ECONNREFUSED|ENOTFOUND|network request failed|Load failed/i.test(text)) return result('네트워크·연결 오류', '브라우저/연결 관리자의 통신 실패 메시지');
     if (chain.some(item => item.code === 'VERBA_DEEP_RESPONSE_EMPTY')) return result('AI 빈 응답', '차단 원인은 확인되지 않음');
     if (chain.some(item => item.code === 'VERBA_DEEP_RESPONSE_FORMAT')) return result('AI 응답 형식·누락 오류', '결과 해석 또는 필수 구간 확인 실패');
-    if (chain.some(item => /^(?:ReferenceError|TypeError|RangeError|SyntaxError)$/.test(item.name) && !item.request)) return result('베에르으바아 실행 오류 의심', 'JavaScript 예외; stage·stack에서 발생 위치 확인');
+    if (chain.some(item => /^(?:ReferenceError|TypeError|RangeError|SyntaxError)$/.test(item.name) && !item.request)) return result('긴르바 실험실 실행 오류 의심', 'JavaScript 예외; stage·stack에서 발생 위치 확인');
     return result('원인 미확정', '전달된 정보만으로 서버·모델·확장 원인을 단정할 수 없음');
 }
 

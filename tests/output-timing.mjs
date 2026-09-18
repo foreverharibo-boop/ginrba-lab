@@ -268,7 +268,7 @@ assert.match(element('#verba-deep-output-timing').textContent, /AI 요청: 1회/
 assert.equal(element('#verba-deep-copy-output-timing').disabled, false);
 await element('#verba-deep-copy-output-timing').handlers.click();
 assert.match(copied, /프로필 A · 최소 프롬프트/);
-assert.match(copied, /베에르으바아 vtest/); assert.ok(!copied.includes('private'));
+assert.match(copied, /긴르바 실험실 vtest/); assert.ok(!copied.includes('private'));
 element('#verba-deep-debug-mode').handlers.change({ target: { checked: false } });
 assert.equal(recorder.latest(), null); assert.equal(element('#verba-deep-copy-output-timing').disabled, true);
 copied = ''; await element('#verba-deep-copy-output-timing').handlers.click(); assert.equal(copied, '');

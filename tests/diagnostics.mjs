@@ -15,7 +15,7 @@ assert.equal(category(new TypeError('Failed to fetch')), '네트워크·연결 �
 assert.equal(category(Object.assign(new Error('timeout'), { code: 'VERBA_DEEP_TIMEOUT' })), '시간 초과');
 assert.equal(category(Object.assign(new Error('empty'), { code: 'VERBA_DEEP_RESPONSE_EMPTY' })), 'AI 빈 응답');
 assert.equal(category(Object.assign(new SyntaxError('invalid JSON'), { code: 'VERBA_DEEP_RESPONSE_FORMAT' })), 'AI 응답 형식·누락 오류');
-assert.equal(category(new ReferenceError('missingFunction is not defined')), '베에르으바아 실행 오류 의심');
+assert.equal(category(new ReferenceError('missingFunction is not defined')), '긴르바 실험실 실행 오류 의심');
 assert.equal(category(new Error('unknown')), '원인 미확정');
 const blocked = rememberRequestError(Object.assign(new Error('empty'), { code: 'VERBA_DEEP_RESPONSE_EMPTY' }), {}, { candidates: [{ finishReason: 'SAFETY' }] });
 assert.equal(category(blocked), '안전 필터·정책 차단');
