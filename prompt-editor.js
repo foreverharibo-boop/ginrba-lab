@@ -1,0 +1,129 @@
+// The enlarged editor forwards edits to the original textarea, so the existing
+// settings save, conflict inspector and delayed backup remain authoritative.
+export function bindPromptExpandEditors(panel) {
+    const doc = panel.ownerDocument;
+    const win = doc.defaultView;
+    for (const source of panel.querySelectorAll('.verba-deep-prompt-slot > textarea')) {
+        const header = source.parentElement.querySelector('.verba-deep-prompt-slot-head');
+        if (!header || header.querySelector('.verba-deep-prompt-expand')) continue;
+        const title = header.querySelector('label')?.textContent.trim() || '프롬프트';
+        const button = doc.createElement('button');
+        button.type = 'button';
+        button.className = 'menu_button verba-deep-prompt-expand';
+        // Draw the icon directly: a Unicode arrow inherits the user's theme font
+        // and can become a tiny serif glyph on mobile.
+        const icon = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        icon.setAttribute('viewBox', '0 0 24 24');
+        icon.setAttribute('width', '12');
+        icon.setAttribute('height', '12');
+        icon.setAttribute('aria-hidden', 'true');
+        icon.setAttribute('focusable', 'false');
+        const arrows = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+        arrows.setAttribute('d', 'M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7');
+        arrows.setAttribute('fill', 'none');
+        arrows.setAttribute('stroke', 'currentColor');
+        arrows.setAttribute('stroke-width', '2');
+        arrows.setAttribute('stroke-linecap', 'round');
+        arrows.setAttribute('stroke-linejoin', 'round');
+        icon.append(arrows);
+        button.append(icon);
+        button.title = `${title} 크게 편집`;
+        button.setAttribute('aria-label', button.title);
+        button.setAttribute('aria-haspopup', 'dialog');
+        header.insertBefore(button, header.querySelector('.verba-deep-prompt-slot-toggle'));
+
+        button.addEventListener('click', event => {
+            event.stopPropagation();
+            if (doc.getElementById('verba-deep-prompt-editor')) return;
+            const dialog = doc.createElement('dialog');
+            dialog.id = 'verba-deep-prompt-editor';
+            dialog.setAttribute('aria-labelledby', 'verba-deep-prompt-editor-title');
+            // Keep interactions local: SillyTavern's global outside-click and
+            // Escape handlers must not also close the extension drawer.
+            for (const type of ['click', 'pointerdown', 'pointerup', 'mousedown', 'mouseup', 'touchstart', 'touchend']) {
+                dialog.addEventListener(type, event => event.stopPropagation());
+            }
+            dialog.addEventListener('keydown', event => {
+                if (event.key === 'Escape') event.stopPropagation();
+            });
+            const heading = doc.createElement('strong');
+            heading.id = 'verba-deep-prompt-editor-title';
+            heading.textContent = title;
+            const editor = doc.createElement('textarea');
+            editor.id = 'verba-deep-prompt-editor-text';
+            editor.className = 'text_pole';
+            editor.setAttribute('aria-labelledby', heading.id);
+            editor.value = source.value;
+            editor.placeholder = source.placeholder;
+            editor.spellcheck = source.spellcheck;
+            const close = doc.createElement('button');
+            close.type = 'button';
+            close.className = 'menu_button verba-deep-prompt-editor-close';
+            close.textContent = '닫기';
+            dialog.append(heading, editor, close);
+
+            const sync = () => {
+                if (source.value === editor.value) return;
+                source.value = editor.value;
+                source.dispatchEvent(new win.Event('input', { bubbles: true }));
+            };
+            editor.addEventListener('input', sync);
+            editor.addEventListener('change', sync);
+            editor.addEventListener('compositionend', sync);
+
+            // Android/iOS keyboards shrink or pan the visual viewport. Size the
+            // editor to that visible area so its sole close button stays in reach.
+            const viewport = win.visualViewport;
+            const resize = () => {
+                for (const [key, value] of Object.entries({
+                    width: viewport?.width ?? win.innerWidth,
+                    height: viewport?.height ?? win.innerHeight,
+                    left: viewport?.offsetLeft ?? 0,
+                    top: viewport?.offsetTop ?? 0,
+                })) dialog.style.setProperty(`--verba-deep-editor-${key}`, `${value}px`);
+            };
+            let finished = false;
+            const finish = () => {
+                if (finished) return;
+                finished = true;
+                editor.blur();
+                sync();
+                source.setSelectionRange(editor.selectionStart, editor.selectionEnd, editor.selectionDirection);
+                source.scrollTop = editor.scrollTop;
+                viewport?.removeEventListener('resize', resize);
+                viewport?.removeEventListener('scroll', resize);
+                win.removeEventListener('resize', resize);
+                if (dialog.open) dialog.close();
+                dialog.remove();
+                if (button.isConnected) button.focus({ preventScroll: true });
+            };
+            close.addEventListener('click', event => {
+                // Stop before removing the dialog: document-level handlers may
+                // otherwise treat the now-detached target as an outside click.
+                event.stopPropagation();
+                finish();
+            });
+            dialog.addEventListener('cancel', event => {
+                event.stopPropagation();
+                event.preventDefault();
+                finish();
+            });
+            dialog.addEventListener('close', event => {
+                event.stopPropagation();
+                finish();
+            });
+            // Native dialogs render in the top layer even when nested here.
+            // This ancestry also lets capture-phase drawer checks recognize the
+            // popup as part of the extension before its own listeners run.
+            panel.append(dialog);
+            resize();
+            viewport?.addEventListener('resize', resize);
+            viewport?.addEventListener('scroll', resize);
+            win.addEventListener('resize', resize);
+            dialog.showModal();
+            editor.focus({ preventScroll: true });
+            editor.setSelectionRange(source.selectionStart, source.selectionEnd, source.selectionDirection);
+            editor.scrollTop = source.scrollTop;
+        });
+    }
+}

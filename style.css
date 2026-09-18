@@ -1,0 +1,3338 @@
+:root {
+    --verba-deep-accent: var(--SmartThemeQuoteColor, var(--SmartThemeEmColor, #a98be8));
+    --verba-deep-surface: var(--SmartThemeBlurTintColor, #25252a);
+    --verba-deep-text: var(--SmartThemeBodyColor, #fff);
+    --verba-deep-border: var(--SmartThemeBorderColor, #888);
+    --verba-deep-shadow: var(--SmartThemeShadowColor, #000);
+}
+
+#verba-deep-settings .verba-deep-prompt-slot-head > label:first-child {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+#verba-deep-settings .verba-deep-prompt-slot-head > .verba-deep-prompt-expand {
+    box-sizing: border-box;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 auto !important;
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    white-space: nowrap;
+}
+
+#verba-deep-settings .verba-deep-prompt-expand > svg {
+    display: block !important;
+    flex: 0 0 12px !important;
+    width: 12px !important;
+    height: 12px !important;
+    margin: 0 !important;
+    pointer-events: none;
+}
+
+#verba-deep-prompt-editor {
+    box-sizing: border-box;
+    position: fixed !important;
+    inset: auto !important;
+    left: calc(var(--verba-deep-editor-left, 0px) + var(--verba-deep-editor-width, 100vw) / 2) !important;
+    top: calc(var(--verba-deep-editor-top, 0px) + var(--verba-deep-editor-height, 100dvh) / 2) !important;
+    transform: translate(-50%, -50%) !important;
+    margin: 0 !important;
+    width: min(860px, calc(var(--verba-deep-editor-width, 100vw) - 24px)) !important;
+    height: min(760px, calc(var(--verba-deep-editor-height, 100dvh) - 24px)) !important;
+    max-width: none !important;
+    max-height: none !important;
+    padding: 14px;
+    overflow: hidden;
+    gap: 12px;
+    border: 1px solid var(--verba-deep-border);
+    border-radius: 12px;
+    background: var(--verba-deep-surface);
+    color: var(--verba-deep-text);
+    box-shadow: 0 16px 48px color-mix(in srgb, var(--verba-deep-shadow) 42%, transparent);
+    font-family: var(--mainFontFamily, sans-serif);
+    font-size: 16px;
+    text-shadow: none;
+    overscroll-behavior: contain;
+}
+
+#verba-deep-prompt-editor[open] {
+    display: flex !important;
+    flex-direction: column;
+}
+
+#verba-deep-prompt-editor::backdrop {
+    background: rgb(0 0 0 / 45%);
+}
+
+#verba-deep-prompt-editor-title {
+    flex: 0 0 auto;
+    font-size: 1em;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+#verba-deep-settings #verba-deep-prompt-editor > textarea {
+    box-sizing: border-box;
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 12px !important;
+    resize: none;
+    overflow: auto;
+    overscroll-behavior: contain;
+    font-family: inherit !important;
+    font-size: 16px !important;
+    line-height: 1.55 !important;
+    text-shadow: none !important;
+}
+
+#verba-deep-settings #verba-deep-prompt-editor > .verba-deep-prompt-editor-close {
+    box-sizing: border-box;
+    align-self: stretch;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    min-height: 42px !important;
+    margin: 0 !important;
+    font-family: inherit;
+    font-size: 15px !important;
+}
+
+#verba-deep-settings > .inline-drawer > .inline-drawer-content {
+    font-size: 0.92em;
+}
+
+.verba-deep-drawer-header {
+    align-items: center;
+}
+
+.verba-deep-drawer-header small {
+    opacity: 0.62;
+    font-weight: 400;
+}
+
+.verba-deep-settings .inline-drawer-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-bottom: 12px;
+}
+
+.verba-deep-settings label {
+    font-weight: 650;
+    margin-top: 3px;
+}
+
+.verba-deep-note {
+    padding: 9px 10px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-accent) 45%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--verba-deep-accent) 10%, transparent);
+    line-height: 1.45;
+}
+
+.verba-deep-help {
+    opacity: 0.72;
+    font-size: 0.88em;
+    line-height: 1.4;
+    margin-top: -4px;
+}
+
+.verba-deep-profile-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.verba-deep-profile-row select {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.verba-deep-profile-row button {
+    flex: 0 0 86px;
+    width: 86px !important;
+    min-width: 86px;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    writing-mode: horizontal-tb !important;
+}
+
+.verba-deep-wide {
+    width: 100%;
+}
+
+.verba-deep-check-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 42%, transparent);
+    border-radius: 9px;
+    background: transparent;
+    font-weight: 550 !important;
+    cursor: pointer;
+}
+
+:is(.verba-deep-check-row, .verba-deep-prompt-slot-toggle, .verba-deep-beginner-choice) input[type="checkbox"] {
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    position: relative;
+    width: 17px !important;
+    height: 17px !important;
+    min-width: 17px !important;
+    flex: 0 0 17px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    color: var(--verba-deep-text) !important;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-text) 65%, transparent) !important;
+    border-radius: 4px !important;
+    background: color-mix(in srgb, var(--verba-deep-text) 5%, transparent) !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+:is(.verba-deep-check-row, .verba-deep-prompt-slot-toggle, .verba-deep-beginner-choice) input[type="checkbox"]::before {
+    content: none !important;
+}
+
+/* Draw the tick with theme text color; SVG data URLs cannot inherit it. */
+:is(.verba-deep-check-row, .verba-deep-prompt-slot-toggle, .verba-deep-beginner-choice) input[type="checkbox"]::after {
+    content: "" !important;
+    display: none !important;
+    position: absolute !important;
+    box-sizing: border-box !important;
+    width: 32% !important;
+    height: 58% !important;
+    top: 43% !important;
+    left: 50% !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-right: 2px solid var(--verba-deep-text) !important;
+    border-bottom: 2px solid var(--verba-deep-text) !important;
+    border-radius: 0 !important;
+    background: none !important;
+    box-shadow: none !important;
+    transform: translate(-50%, -50%) rotate(45deg) !important;
+    pointer-events: none;
+}
+
+:is(.verba-deep-check-row, .verba-deep-prompt-slot-toggle, .verba-deep-beginner-choice) input[type="checkbox"]:checked {
+    border-color: var(--verba-deep-text) !important;
+    background: color-mix(in srgb, var(--verba-deep-text) 5%, transparent) !important;
+    box-shadow: none !important;
+}
+
+:is(.verba-deep-check-row, .verba-deep-prompt-slot-toggle, .verba-deep-beginner-choice) input[type="checkbox"]:checked::after {
+    display: block !important;
+}
+
+:is(.verba-deep-check-row, .verba-deep-prompt-slot-toggle, .verba-deep-beginner-choice) input[type="checkbox"]:focus-visible {
+    outline: 2px solid var(--verba-deep-accent) !important;
+    outline-offset: 2px;
+}
+
+.verba-deep-check-row small {
+    opacity: 0.68;
+    font-weight: 400;
+}
+
+.verba-deep-settings textarea {
+    width: 100%;
+    resize: vertical;
+    line-height: 1.4;
+}
+
+.verba-deep-name-lock-manager {
+    margin: 2px 0;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 70%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--verba-deep-surface) 82%, transparent);
+    overflow: hidden;
+}
+
+.verba-deep-name-lock-manager > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 10px;
+    cursor: pointer;
+    font-weight: 650;
+    list-style: none;
+    user-select: none;
+}
+
+.verba-deep-name-lock-manager > summary::-webkit-details-marker {
+    display: none;
+}
+
+.verba-deep-name-lock-manager > summary small {
+    margin-left: auto;
+    opacity: 0.62;
+    font-weight: 400;
+}
+
+.verba-deep-name-lock-manager > summary::after {
+    content: '›';
+    font-size: 1.2em;
+    line-height: 1;
+    transform: rotate(0deg);
+    transition: transform 0.15s ease;
+}
+
+.verba-deep-name-lock-manager[open] > summary::after {
+    transform: rotate(90deg);
+}
+
+.verba-deep-name-lock-manager-content {
+    display: grid;
+    gap: 8px;
+    padding: 0 9px 9px;
+    border-top: 1px solid color-mix(in srgb, var(--verba-deep-border) 45%, transparent);
+}
+
+.verba-deep-name-lock-manager-content > .verba-deep-help:first-child {
+    margin-top: 8px;
+}
+
+.verba-deep-name-lock-pair input {
+    min-width: 0;
+    width: 100%;
+}
+
+.verba-deep-name-lock-row-actions button {
+    width: auto !important;
+    min-width: 58px;
+    white-space: nowrap;
+}
+
+.verba-deep-name-lock-list {
+    display: grid;
+    gap: 6px;
+    max-height: min(52vh, 460px);
+    overflow: auto;
+    padding-right: 2px;
+}
+
+.verba-deep-name-lock-group {
+    display: grid;
+    gap: 6px;
+    padding: 7px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 55%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--verba-deep-surface) 72%, transparent);
+}
+
+.verba-deep-name-lock-group-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 1px 2px 3px;
+}
+
+.verba-deep-name-lock-group-header b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.verba-deep-name-lock-group-header small {
+    margin-left: auto;
+    flex: 0 0 auto;
+    opacity: 0.62;
+}
+
+.verba-deep-name-lock-row {
+    display: grid;
+    gap: 6px;
+    padding: 7px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 42%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 7%, transparent);
+}
+
+.verba-deep-name-lock-pair {
+    display: grid;
+    grid-template-columns: minmax(60px, 0.8fr) auto minmax(0, 1.2fr);
+    align-items: center;
+    gap: 7px;
+}
+
+.verba-deep-name-lock-pair b {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.verba-deep-name-lock-pair > span {
+    color: var(--verba-deep-accent);
+}
+
+.verba-deep-name-lock-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.verba-deep-name-lock-delete {
+    opacity: 0.78;
+}
+
+.verba-deep-name-lock-empty {
+    padding: 9px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 7%, transparent);
+    text-align: center;
+    opacity: 0.7;
+}
+
+.verba-deep-tool-details {
+    margin: 2px 0;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 70%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--verba-deep-surface) 82%, transparent);
+    overflow: hidden;
+}
+
+.verba-deep-tool-details > summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 10px;
+    cursor: pointer;
+    font-weight: 650;
+    list-style: none;
+    user-select: none;
+}
+
+.verba-deep-tool-details > summary::-webkit-details-marker {
+    display: none;
+}
+
+.verba-deep-tool-details > summary small {
+    margin-left: auto;
+    opacity: 0.62;
+    font-weight: 400;
+}
+
+.verba-deep-tool-details > summary::after {
+    content: '›';
+    font-size: 1.2em;
+    line-height: 1;
+    transition: transform 0.15s ease;
+}
+
+.verba-deep-tool-details[open] > summary::after {
+    transform: rotate(90deg);
+}
+
+.verba-deep-tool-details-content {
+    display: grid;
+    gap: 8px;
+    padding: 9px;
+    border-top: 1px solid color-mix(in srgb, var(--verba-deep-border) 45%, transparent);
+}
+
+
+.verba-deep-profile-stats-content {
+    display: grid;
+    gap: 6px;
+}
+
+.verba-deep-stat-row {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 2px 7px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 7%, transparent);
+}
+
+.verba-deep-stat-row > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.verba-deep-stat-row > small {
+    grid-column: 1 / -1;
+    opacity: 0.72;
+    line-height: 1.35;
+}
+
+.verba-deep-rule-priority-list {
+    display: grid;
+    gap: 5px;
+}
+
+.verba-deep-rule-priority-row {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    min-height: 36px;
+    padding: 5px 6px 5px 8px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 42%, transparent);
+    border-radius: 8px;
+    background: transparent;
+}
+
+.verba-deep-rule-priority-row > b {
+    text-align: center;
+    opacity: 0.72;
+}
+
+.verba-deep-rule-priority-row > span {
+    min-width: 0;
+    line-height: 1.3;
+}
+
+.verba-deep-rule-priority-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.verba-deep-rule-priority-actions button {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+}
+
+.verba-deep-rule-priority-actions button:disabled {
+    opacity: 0.28;
+}
+
+#verba-deep-retranslate-latest,
+#verba-deep-profile-toggle {
+    position: relative;
+    top: auto !important;
+    bottom: auto !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    align-self: center !important;
+}
+
+.verba-deep-input-icon {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    max-width: 30px;
+    padding: 0 !important;
+    box-sizing: border-box;
+    flex: 0 0 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 8px;
+    color: var(--SmartThemeBodyColor, inherit);
+    background: transparent;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.84;
+    vertical-align: middle;
+    align-self: center;
+    margin-block: 0 !important;
+}
+
+.verba-deep-input-icon:hover,
+.verba-deep-input-icon:focus-visible {
+    opacity: 1;
+    background: color-mix(in srgb, var(--verba-deep-accent) 18%, transparent);
+}
+
+.verba-deep-input-icon:disabled {
+    opacity: 0.28;
+    cursor: default;
+}
+
+.verba-deep-profile-toggle {
+    position: relative;
+    font-size: 16px;
+    overflow: visible;
+}
+
+.verba-deep-profile-toggle:hover,
+.verba-deep-profile-toggle:focus,
+.verba-deep-profile-toggle:focus-visible,
+.verba-deep-profile-toggle:active {
+    background: transparent !important;
+}
+
+.verba-deep-profile-toggle[hidden] {
+    display: none !important;
+}
+
+.verba-deep-profile-arrows {
+    line-height: 1;
+    transform: translateX(-1px) scale(0.92);
+}
+
+.verba-deep-profile-slot {
+    --verba-deep-profile-slot-color: #ad83dc;
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    min-width: 11px;
+    height: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 2px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--verba-deep-profile-slot-color);
+    font-size: 7px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 0 0 1px var(--verba-deep-profile-slot-color);
+}
+
+.verba-deep-profile-toggle.verba-deep-profile-b .verba-deep-profile-slot {
+    --verba-deep-profile-slot-color: #dc86a3;
+    background: transparent;
+    color: var(--verba-deep-profile-slot-color);
+}
+
+.verba-deep-profile-toggle.verba-deep-profile-c .verba-deep-profile-slot {
+    --verba-deep-profile-slot-color: #6aa9da;
+    background: transparent;
+    color: var(--verba-deep-profile-slot-color);
+    box-shadow: 0 0 0 1px var(--verba-deep-profile-slot-color);
+}
+
+.verba-deep-input-icon.verba-deep-busy .verba-deep-retranslate-glyph {
+    animation: verba-deep-spin 1.1s linear infinite;
+}
+
+.verba-deep-input-icon.verba-deep-retry-needed {
+    color: #d65c5c;
+    opacity: 1;
+}
+
+@keyframes verba-deep-spin {
+    from { transform: translateY(-1.5px) rotate(0deg); }
+    to { transform: translateY(-1.5px) rotate(360deg); }
+}
+
+
+
+/* v0.4.52: theme-stable input controls.
+   Keep both controls as independent siblings and never calculate top offsets
+   from the active theme. Their outer geometry is fixed; only the glyph gets
+   a tiny optical correction. */
+#verba-deep-profile-toggle,
+#verba-deep-retranslate-latest {
+    position: relative !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    width: 30px !important;
+    height: 30px !important;
+    min-width: 30px !important;
+    max-width: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px !important;
+    flex: 0 0 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    align-self: center !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    box-sizing: border-box !important;
+    vertical-align: middle !important;
+    line-height: 1 !important;
+    transform: none !important;
+    translate: none !important;
+}
+
+.verba-deep-profile-arrows,
+.verba-deep-retranslate-glyph {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.verba-deep-retranslate-glyph {
+    font-size: 22px;
+    transform: translateY(-1.5px);
+}
+
+
+/* v0.4.53: the profile switcher must disappear unless 2+ distinct profiles
+   are configured. This ID selector intentionally overrides the generic
+   #verba-deep-profile-toggle display rule above. */
+#verba-deep-profile-toggle[hidden] {
+    display: none !important;
+}
+
+/* Verba Deep's long-running translation indicator must never inherit a generic
+   gray toast fallback from theme/Toastr state changes. */
+#toast-container > .toast.verba-deep-progress-toast,
+.toast.verba-deep-progress-toast {
+    background-color: #5f9db4 !important;
+    background-image: none !important;
+    color: #fff !important;
+    opacity: 1 !important;
+}
+
+#toast-container > .toast.verba-deep-progress-toast:hover,
+.toast.verba-deep-progress-toast:hover {
+    background-color: #5f9db4 !important;
+    opacity: 1 !important;
+}
+
+.verba-deep-bottom-notice {
+    position: fixed !important;
+    z-index: 2147483646 !important;
+    left: 50% !important;
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+    transform: translateX(-50%) !important;
+    box-sizing: border-box !important;
+    max-width: calc(100vw - 24px) !important;
+    padding: 9px 13px !important;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 75%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, var(--verba-deep-surface) 96%, transparent) !important;
+    color: var(--verba-deep-text) !important;
+    box-shadow: 0 5px 18px color-mix(in srgb, var(--verba-deep-shadow) 30%, transparent) !important;
+    font-family: var(--mainFontFamily, inherit) !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.78) !important;
+    line-height: 1.3 !important;
+}
+
+#verba-deep-server-retry-indicator {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    cursor: pointer !important;
+}
+
+#verba-deep-server-retry-indicator:disabled {
+    cursor: wait !important;
+    opacity: 0.8 !important;
+}
+
+.verba-deep-bottom-error {
+    width: min(560px, calc(100vw - 24px)) !important;
+    max-height: min(32vh, 220px) !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 10px !important;
+    border-radius: 14px !important;
+    border-color: rgba(214, 92, 92, 0.9) !important;
+    background: color-mix(in srgb, #7d2828 78%, var(--verba-deep-surface)) !important;
+    color: #fff !important;
+}
+
+.verba-deep-bottom-error span {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-height: min(27vh, 180px);
+    overflow: auto;
+    overflow-wrap: anywhere;
+}
+
+.verba-deep-error-actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.verba-deep-bottom-error .verba-deep-debug-copy {
+    width: auto !important;
+    min-width: 72px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 3px 9px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+    font: inherit !important;
+    line-height: 1.1 !important;
+}
+
+.verba-deep-bottom-error .verba-deep-error-close {
+    flex: 0 0 auto;
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 26px !important;
+    min-height: 26px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    cursor: pointer;
+}
+
+.verba-deep-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 2147483646 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    margin: 0 !important;
+    transform: none !important;
+    padding: 14px;
+    background: transparent !important;
+}
+
+.verba-deep-modal {
+    position: relative !important;
+    inset: auto !important;
+    margin: auto !important;
+    transform: none !important;
+    width: min(540px, calc(100vw - 24px));
+    max-height: min(82vh, 680px);
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 15px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-accent) 55%, transparent);
+    border-radius: 14px;
+    background: var(--verba-deep-surface);
+    color: var(--verba-deep-text);
+    box-shadow: 0 16px 48px color-mix(in srgb, var(--verba-deep-shadow) 42%, transparent);
+    font-family: var(--mainFontFamily, inherit) !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.78) !important;
+    line-height: 1.35;
+}
+
+.verba-deep-modal,
+.verba-deep-modal *,
+.verba-deep-selection-actions,
+.verba-deep-selection-actions * {
+    text-shadow: none !important;
+}
+
+.verba-deep-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.verba-deep-modal-header strong {
+    font-family: inherit !important;
+    font-size: 1em !important;
+    line-height: 1.25;
+}
+
+.verba-deep-modal label {
+    font-family: inherit !important;
+    font-size: 0.9em !important;
+}
+
+.verba-deep-close {
+    width: 30px;
+    height: 30px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font-family: inherit !important;
+    font-size: 0.92em !important;
+}
+
+.verba-deep-target-preview {
+    display: grid;
+    gap: 3px;
+    padding: 8px 9px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 10%, transparent);
+    font-size: 0.86em;
+}
+
+.verba-deep-target-preview span {
+    opacity: 0.78;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.verba-deep-target-preview b {
+    font-family: inherit !important;
+    font-size: 0.92em !important;
+}
+
+.verba-deep-modal textarea,
+.verba-deep-modal input {
+    width: 100%;
+    font-family: inherit !important;
+    font-size: 0.9em !important;
+}
+
+.verba-deep-modal .verba-deep-check-row {
+    width: 100% !important;
+    min-height: 34px;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 8px !important;
+    writing-mode: horizontal-tb !important;
+}
+
+.verba-deep-modal .verba-deep-check-row input[type="checkbox"] {
+    width: 17px !important;
+    height: 17px !important;
+    min-width: 17px !important;
+    flex: 0 0 17px !important;
+    margin: 0 !important;
+}
+
+.verba-deep-modal .verba-deep-check-row span {
+    width: auto !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    writing-mode: horizontal-tb !important;
+}
+
+.verba-deep-modal textarea {
+    resize: vertical;
+}
+
+.verba-deep-modal small {
+    opacity: 0.7;
+    font-size: 0.82em;
+}
+
+.verba-deep-modal-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.verba-deep-modal-actions > button {
+    width: auto !important;
+    min-width: 82px;
+    flex: 0 0 auto !important;
+    font-family: inherit !important;
+    font-size: 0.88em !important;
+}
+
+#verba-deep-base-editor .verba-deep-base-buttons {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+    gap: 6px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: auto;
+    writing-mode: horizontal-tb !important;
+}
+
+#verba-deep-base-editor .verba-deep-base-buttons > button.menu_button {
+    display: inline-flex !important;
+    flex: 1 0 auto !important;
+    flex-direction: row !important;
+    justify-content: center !important;
+    align-items: center !important;
+    width: auto !important;
+    min-width: max-content !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 32px !important;
+    margin: 0 !important;
+    padding: 6px 9px !important;
+    box-sizing: border-box !important;
+    font-size: clamp(11px, 2.8vw, 13px) !important;
+    line-height: 1.3 !important;
+    white-space: nowrap !important;
+    word-break: keep-all !important;
+    overflow-wrap: normal !important;
+    writing-mode: horizontal-tb !important;
+    text-orientation: mixed !important;
+}
+
+#verba-deep-base-editor textarea {
+    width: 100%;
+    min-height: 150px;
+    max-height: 55vh;
+    resize: vertical;
+    font-size: 0.85em;
+}
+
+.verba-deep-selection-actions {
+    position: fixed !important;
+    z-index: 2147483646 !important;
+    display: flex !important;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 5px;
+    width: auto !important;
+    max-width: calc(100vw - 16px);
+    padding: 4px !important;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-accent) 55%, transparent);
+    border-radius: 20px !important;
+    background: var(--verba-deep-surface);
+    color: var(--verba-deep-text);
+    box-shadow: 0 5px 18px color-mix(in srgb, var(--verba-deep-shadow) 38%, transparent);
+    font-family: var(--mainFontFamily, inherit) !important;
+}
+
+.verba-deep-selection-action {
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 34px;
+    flex: 0 1 auto !important;
+    padding: 5px 10px !important;
+    border-radius: 16px !important;
+    font-family: inherit !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.72) !important;
+    white-space: nowrap;
+}
+
+.verba-deep-name-lock-action {
+    border-color: color-mix(in srgb, var(--verba-deep-accent) 65%, transparent) !important;
+}
+
+.verba-deep-source-lens-action {
+    border-color: color-mix(in srgb, var(--verba-deep-accent) 45%, transparent) !important;
+}
+
+.verba-deep-segment-lock-action {
+    border-color: color-mix(in srgb, #d9a441 68%, transparent) !important;
+}
+
+.verba-deep-bundle-add-action {
+    border-color: color-mix(in srgb, #6aa9da 68%, transparent) !important;
+}
+
+.verba-deep-selection-more-toggle {
+    width: 32px !important;
+    min-width: 32px !important;
+    padding-inline: 6px !important;
+    font-size: 1em !important;
+    font-weight: 700;
+}
+
+.verba-deep-selection-more-menu {
+    position: fixed !important;
+    z-index: 2147483647 !important;
+    display: grid !important;
+    min-width: 142px;
+    max-width: calc(100vw - 16px);
+    gap: 4px;
+    padding: 5px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-accent) 48%, transparent);
+    border-radius: 12px;
+    background: var(--verba-deep-surface);
+    box-shadow: 0 5px 18px color-mix(in srgb, var(--verba-deep-shadow) 38%, transparent);
+    color: var(--verba-deep-text);
+    font-family: var(--mainFontFamily, inherit) !important;
+}
+
+.verba-deep-selection-more-menu:popover-open {
+    display: grid !important;
+}
+
+.verba-deep-selection-more-menu > .verba-deep-selection-more-action {
+    width: 100% !important;
+    min-height: 32px;
+    justify-content: flex-start;
+    padding: 5px 9px !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.72) !important;
+    text-align: left;
+}
+
+::highlight(verba-deep-locked-segments) {
+    background-color: rgba(217, 164, 65, 0.2);
+}
+
+::highlight(verba-deep-bundle-selections) {
+    background-color: rgba(106, 169, 218, 0.2);
+}
+
+.verba-deep-context-choice {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 55%, transparent);
+    border-radius: 9px;
+}
+
+.verba-deep-context-choice legend {
+    padding: 0 4px;
+    font-size: 0.86em;
+    font-weight: 650;
+}
+
+.verba-deep-context-choice label {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 0;
+    padding: 6px;
+    border-radius: 7px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 48%, transparent);
+    background: transparent;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.verba-deep-context-choice input[type="radio"] {
+    position: absolute !important;
+    inline-size: 1px !important;
+    block-size: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.verba-deep-context-choice label:has(input[type="radio"]:checked) {
+    border-color: var(--verba-deep-accent);
+    background: color-mix(in srgb, var(--verba-deep-accent) 16%, transparent);
+    font-weight: 700;
+}
+
+.verba-deep-context-choice label:has(input[type="radio"]:focus-visible) {
+    outline: 2px solid var(--verba-deep-accent);
+    outline-offset: 1px;
+}
+
+.verba-deep-tuning-choice {
+    display: grid;
+    gap: 7px;
+    margin: 0;
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 55%, transparent);
+    border-radius: 9px;
+}
+
+.verba-deep-tuning-choice legend {
+    padding: 0 4px;
+    font-size: 0.86em;
+    font-weight: 650;
+}
+
+.verba-deep-tuning-choice legend small,
+.verba-deep-tuning-label small {
+    opacity: 0.65;
+    font-weight: 400;
+}
+
+.verba-deep-tuning-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 0.88em;
+    font-weight: 650;
+}
+
+.verba-deep-tuning-control-group {
+    display: grid;
+    gap: 7px;
+    transition: opacity 0.15s ease;
+}
+
+.verba-deep-tuning-control-group.verba-deep-control-disabled {
+    opacity: 0.42;
+}
+
+.verba-deep-tuning-control-group.verba-deep-control-disabled label {
+    cursor: default;
+}
+
+.verba-deep-tuning-options {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 4px;
+}
+
+.verba-deep-tuning-options label {
+    position: relative;
+    min-width: 0;
+    margin: 0 !important;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.verba-deep-tuning-options input[type="radio"] {
+    position: absolute !important;
+    inline-size: 1px !important;
+    block-size: 1px !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.verba-deep-tuning-options span {
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 4px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 55%, transparent);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 6%, transparent);
+    font-size: 0.8em;
+    line-height: 1.15;
+    text-align: center;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+}
+
+.verba-deep-tuning-options input[type="radio"]:checked + span {
+    border-color: var(--verba-deep-accent);
+    background: color-mix(in srgb, var(--verba-deep-accent) 18%, transparent);
+    color: var(--verba-deep-text);
+    font-weight: 700;
+}
+
+.verba-deep-tuning-options input[type="radio"]:focus-visible + span {
+    outline: 2px solid var(--verba-deep-accent);
+    outline-offset: 1px;
+}
+
+.verba-deep-multi-selection-tray {
+    display: flex !important;
+    position: fixed !important;
+    z-index: 2147483645 !important;
+    left: 50% !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: calc(132px + env(safe-area-inset-bottom, 0px)) !important;
+    transform: translateX(-50%) !important;
+    margin: 0 !important;
+    width: max-content;
+    max-width: calc(100vw - 18px);
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-accent) 58%, transparent);
+    border-radius: 18px;
+    background: var(--verba-deep-surface, var(--SmartThemeBlurTintColor, #222));
+    color: var(--verba-deep-text, var(--SmartThemeBodyColor, #eee));
+    box-shadow: 0 5px 18px color-mix(in srgb, var(--verba-deep-shadow) 38%, transparent);
+    font-family: var(--mainFontFamily, inherit) !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.7) !important;
+}
+
+.verba-deep-multi-selection-tray:popover-open {
+    display: flex !important;
+}
+
+.verba-deep-multi-selection-tray b {
+    white-space: nowrap;
+}
+
+.verba-deep-multi-selection-tray button {
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 5px 8px !important;
+    white-space: nowrap !important;
+    font: inherit !important;
+}
+
+.verba-deep-source-lens-text {
+    max-height: min(48vh, 420px);
+    margin: 0;
+    padding: 10px;
+    overflow: auto;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-border) 55%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--verba-deep-text) 7%, transparent);
+    color: inherit;
+    font: inherit;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.verba-deep-copy-options {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.verba-deep-copy-options > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    white-space: normal !important;
+}
+
+.verba-deep-name-match {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+    gap: 6px 10px;
+    padding: 9px 10px;
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--verba-deep-text) 10%, transparent);
+}
+
+.verba-deep-name-match span {
+    opacity: 0.7;
+}
+
+.verba-deep-name-match b {
+    overflow-wrap: anywhere;
+}
+
+#verba-deep-name-lock-target {
+    width: 100%;
+}
+
+.verba-deep-candidate-modal {
+    width: min(620px, calc(100vw - 24px));
+}
+
+.verba-deep-candidate-list {
+    display: grid;
+    gap: 8px;
+}
+
+.verba-deep-candidate-option {
+    width: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: 58px minmax(0, 1fr);
+    align-items: start;
+    gap: 8px;
+    padding: 10px 11px !important;
+    text-align: left !important;
+    white-space: normal !important;
+    line-height: 1.45 !important;
+}
+
+.verba-deep-candidate-option b {
+    color: var(--verba-deep-accent);
+    white-space: nowrap;
+}
+
+.verba-deep-candidate-option span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.verba-deep-candidate-option:hover,
+.verba-deep-candidate-option:focus-visible {
+    border-color: var(--verba-deep-accent) !important;
+    background: color-mix(in srgb, var(--verba-deep-accent) 16%, transparent) !important;
+}
+
+@media (max-width: 600px) {
+    .verba-deep-selection-actions {
+        flex-wrap: nowrap !important;
+        gap: 2px !important;
+        max-width: calc(100vw - 8px) !important;
+        padding: 2px !important;
+        border-radius: 16px !important;
+    }
+
+    .verba-deep-selection-action {
+        min-height: 28px !important;
+        flex: 0 0 auto !important;
+        padding: 3px 5px !important;
+        border-radius: 13px !important;
+        font-size: clamp(8.5px, 2.45vw, 11px) !important;
+        line-height: 1.05 !important;
+        letter-spacing: -0.04em !important;
+        white-space: nowrap !important;
+    }
+
+    .verba-deep-selection-more-toggle {
+        width: 28px !important;
+        min-width: 28px !important;
+        padding-inline: 4px !important;
+        font-size: 12px !important;
+    }
+
+    .verba-deep-selection-more-menu {
+        min-width: 136px;
+        gap: 3px;
+        padding: 4px;
+    }
+
+    .verba-deep-selection-more-menu > .verba-deep-selection-more-action {
+        min-height: 30px !important;
+        padding: 5px 8px !important;
+        font-size: calc(var(--messageTextFontSize, 1rem) * 0.68) !important;
+        letter-spacing: normal !important;
+    }
+
+    .verba-deep-modal {
+        width: calc(100vw - 18px);
+        max-height: 78vh;
+        padding: 13px;
+    }
+
+    .verba-deep-profile-row {
+        align-items: stretch;
+    }
+
+    .verba-deep-profile-row button {
+        padding-inline: 9px;
+    }
+
+    .verba-deep-modal-actions > button {
+        min-width: 76px;
+    }
+
+    .verba-deep-tuning-options {
+        gap: 3px;
+    }
+
+    .verba-deep-tuning-options span {
+        min-height: 42px;
+        padding: 4px 2px;
+        font-size: clamp(8px, 2.2vw, 10px);
+        line-height: 1.12;
+        letter-spacing: -0.04em;
+        white-space: normal;
+        word-break: keep-all;
+    }
+
+    .verba-deep-candidate-option {
+        grid-template-columns: 52px minmax(0, 1fr);
+        padding: 9px !important;
+    }
+
+}
+\n\n/* v0.3.41 — mobile retranslation modal: keep the whole dialog reachable above the keyboard */
+#verba-deep-request-overlay.verba-deep-overlay {
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+}
+
+#verba-deep-request-overlay .verba-deep-modal {
+    box-sizing: border-box !important;
+    max-height: calc(100dvh - 28px) !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 600px) {
+    #verba-deep-request-overlay.verba-deep-overlay {
+        align-items: flex-start !important;
+        padding: max(8px, env(safe-area-inset-top, 0px)) 9px max(8px, env(safe-area-inset-bottom, 0px)) !important;
+    }
+
+    #verba-deep-request-overlay .verba-deep-modal {
+        width: 100% !important;
+        max-height: calc(100dvh - max(16px, env(safe-area-inset-top, 0px) + env(safe-area-inset-bottom, 0px))) !important;
+        margin: 0 auto !important;
+        padding: 12px !important;
+        gap: 8px !important;
+    }
+
+    #verba-deep-request-overlay #verba-deep-request-text {
+        min-height: 72px !important;
+        max-height: 24dvh !important;
+        resize: none !important;
+        flex: 0 0 auto !important;
+    }
+
+    #verba-deep-request-overlay .verba-deep-tuning-choice {
+        flex: 0 0 auto !important;
+    }
+
+    #verba-deep-request-overlay .verba-deep-modal-actions {
+        position: sticky !important;
+        bottom: -12px !important;
+        z-index: 2 !important;
+        padding: 8px 0 4px !important;
+        background: var(--verba-deep-surface) !important;
+    }
+}
+
+/* v0.3.51 — tablet/desktop-layout retranslation request field */
+@media (min-width: 601px) {
+    #verba-deep-request-overlay #verba-deep-request-text {
+        box-sizing: border-box !important;
+        height: clamp(104px, 13dvh, 150px) !important;
+        min-height: 104px !important;
+        max-height: 180px !important;
+        padding: 10px 12px !important;
+        line-height: 1.45 !important;
+        resize: vertical !important;
+    }
+}
+
+
+
+/* Prompt conflict inspector */
+.verba-deep-prompt-conflict-content {
+    display: grid;
+    gap: 7px;
+}
+
+.verba-deep-conflict-empty {
+    padding: 9px 10px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 7%, transparent);
+    line-height: 1.4;
+    opacity: 0.78;
+}
+
+.verba-deep-conflict-card {
+    display: grid;
+    gap: 6px;
+    padding: 8px;
+    border: 1px solid color-mix(in srgb, #d9a441 62%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, #d9a441 8%, transparent);
+}
+
+.verba-deep-conflict-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.verba-deep-conflict-card-header small {
+    flex: 0 0 auto;
+    opacity: 0.7;
+}
+
+.verba-deep-conflict-side {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 4px 8px;
+}
+
+.verba-deep-conflict-side > span {
+    min-width: 0;
+    font-weight: 650;
+}
+
+.verba-deep-conflict-side > b {
+    font-size: 0.85em;
+    opacity: 0.78;
+}
+
+.verba-deep-conflict-side > code {
+    grid-column: 1 / -1;
+    display: block;
+    padding: 6px 7px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--verba-deep-text) 8%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: 0.82em;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.verba-deep-conflict-vs {
+    text-align: center;
+    font-size: 0.78em;
+    opacity: 0.58;
+}
+
+
+/* Compact recent/previous chooser for the input-side retranslate button. */
+.verba-deep-retranslate-target-menu {
+    position: fixed !important;
+    z-index: 2147483647 !important;
+    display: flex !important;
+    align-items: center;
+    gap: 4px;
+    width: max-content;
+    padding: 4px;
+    margin: 0 !important;
+    border: 1px solid color-mix(in srgb, var(--verba-deep-accent) 55%, transparent);
+    border-radius: 14px;
+    background: var(--verba-deep-surface);
+    color: var(--verba-deep-text);
+    box-shadow: 0 5px 18px color-mix(in srgb, var(--verba-deep-shadow) 38%, transparent);
+    font-family: var(--mainFontFamily, inherit) !important;
+}
+
+.verba-deep-retranslate-target-menu > button {
+    width: auto !important;
+    min-width: 48px !important;
+    min-height: 30px !important;
+    padding: 4px 10px !important;
+    border-radius: 11px !important;
+    white-space: nowrap !important;
+    font: inherit !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.72) !important;
+}
+
+.verba-deep-previous-output-modal {
+    width: min(620px, calc(100vw - 24px));
+}
+
+.verba-deep-previous-output-list {
+    display: grid;
+    gap: 6px;
+    max-height: min(62vh, 560px);
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.verba-deep-previous-output-option {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    display: grid !important;
+    gap: 4px;
+    padding: 8px 9px !important;
+    text-align: left !important;
+    white-space: normal !important;
+    line-height: 1.35 !important;
+}
+
+.verba-deep-previous-output-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.verba-deep-previous-output-meta small {
+    opacity: 0.65;
+}
+
+.verba-deep-previous-output-option > span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow-wrap: anywhere;
+    opacity: 0.82;
+}
+
+
+.verba-deep-previous-output-more {
+    width: 100% !important;
+    min-height: 34px !important;
+    flex: 0 0 auto !important;
+    margin-top: 2px !important;
+    font-family: inherit !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.76) !important;
+}
+
+.verba-deep-previous-output-more[hidden] {
+    display: none !important;
+}
+
+
+/* v0.3.64: compact recent/previous/source-view menu */
+.verba-deep-retranslate-target-menu {
+    display: flex !important;
+    gap: 4px !important;
+    width: max-content !important;
+    max-width: calc(100vw - 16px) !important;
+}
+
+.verba-deep-retranslate-target-menu > button {
+    width: auto !important;
+    min-width: 46px !important;
+    padding: 5px 9px !important;
+    white-space: nowrap !important;
+}
+
+
+/* v0.3.66: previous-output picker is centered against the visual viewport */
+#verba-deep-request-overlay.verba-deep-previous-output-overlay {
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-modal {
+    box-sizing: border-box !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-list {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 600px) {
+    #verba-deep-request-overlay.verba-deep-previous-output-overlay {
+        align-items: center !important;
+        justify-content: center !important;
+        padding: 9px !important;
+    }
+
+    #verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-modal {
+        width: calc(100vw - 18px) !important;
+    }
+}
+
+
+/* v0.3.67: stable previous-output list on mobile */
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-modal {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-modal-header,
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-more {
+    flex: 0 0 auto !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-list {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    gap: 8px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 1px 2px 1px 0 !important;
+    -webkit-overflow-scrolling: touch;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-option {
+    display: block !important;
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 74px !important;
+    max-height: none !important;
+    box-sizing: border-box !important;
+    padding: 9px 10px !important;
+    overflow: hidden !important;
+    line-height: 1.4 !important;
+    white-space: normal !important;
+    text-align: left !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-meta {
+    display: block !important;
+    margin-bottom: 5px !important;
+    line-height: 1.2 !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-option > span:last-child {
+    display: -webkit-box !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+}
+
+@media (max-width: 600px) {
+    #verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-option {
+        min-height: 70px !important;
+        padding: 8px 9px !important;
+    }
+}
+
+
+/* v0.3.68: brief cue after jumping to a completed previous-output translation */
+.mes.verba-deep-jump-highlight {
+    animation: verba-deep-jump-highlight 1.8s ease-out;
+}
+
+@keyframes verba-deep-jump-highlight {
+    0%, 35% {
+        outline: 2px solid var(--verba-deep-accent);
+        outline-offset: 3px;
+    }
+    100% {
+        outline-color: transparent;
+        outline-offset: 6px;
+    }
+}
+
+
+/* v0.3.69: previous-output search */
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-search {
+    width: 100% !important;
+    min-height: 36px !important;
+    flex: 0 0 auto !important;
+    box-sizing: border-box !important;
+    padding: 7px 10px !important;
+    font-family: inherit !important;
+    font-size: calc(var(--messageTextFontSize, 1rem) * 0.78) !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-empty {
+    padding: 18px 10px !important;
+    text-align: center !important;
+    opacity: 0.68 !important;
+    line-height: 1.4 !important;
+}
+
+
+/* v0.3.70: dialogue-ending preference controls */
+#verba-deep-dialogue-ending-settings textarea {
+    width: 100% !important;
+    min-height: 82px !important;
+    resize: vertical !important;
+    line-height: 1.4 !important;
+}
+
+#verba-deep-dialogue-ending-settings select {
+    width: 100% !important;
+}
+
+
+/* v0.3.73: recent retranslation instructions */
+.verba-deep-request-history {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    margin-top: 5px !important;
+}
+
+.verba-deep-request-history-header {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    font-size: 0.82em !important;
+    opacity: 0.82 !important;
+}
+
+.verba-deep-request-history-clear {
+    appearance: none !important;
+    border: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    padding: 2px 4px !important;
+    font: inherit !important;
+    opacity: 0.72 !important;
+    cursor: pointer !important;
+}
+
+.verba-deep-request-history-list {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 5px !important;
+}
+
+.verba-deep-request-history-chip {
+    appearance: none !important;
+    max-width: 100% !important;
+    border: 1px solid color-mix(in srgb, currentColor 22%, transparent) !important;
+    border-radius: 999px !important;
+    background: color-mix(in srgb, currentColor 7%, transparent) !important;
+    color: inherit !important;
+    padding: 4px 8px !important;
+    font: inherit !important;
+    font-size: 0.78em !important;
+    line-height: 1.25 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    cursor: pointer !important;
+}
+
+@media (max-width: 600px) {
+    .verba-deep-request-history-chip {
+        max-width: min(100%, 250px) !important;
+    }
+}
+
+
+
+
+
+
+/* v0.3.79: flat/minimal previous-output return control */
+#verba-deep-return-position.verba-deep-return-position {
+    position: fixed !important;
+    z-index: 2147483647 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 2px !important;
+    width: max-content !important;
+    max-width: calc(100vw - 16px) !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+}
+
+#verba-deep-return-position::backdrop {
+    background: transparent !important;
+    pointer-events: none !important;
+}
+
+#verba-deep-return-position .verba-deep-return-position-main {
+    appearance: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 30px !important;
+    padding: 5px 10px !important;
+    margin: 0 !important;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent) !important;
+    border-radius: 6px !important;
+    background: var(--SmartThemeBlurTintColor, rgba(32,32,32,.92)) !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: .82em !important;
+    font-weight: 500 !important;
+    line-height: 1 !important;
+    letter-spacing: 0 !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+}
+
+#verba-deep-return-position .verba-deep-return-position-main::before {
+    content: '↩' !important;
+    display: inline-block !important;
+    margin-right: 5px !important;
+    font-size: .92em !important;
+    opacity: .72 !important;
+}
+
+#verba-deep-return-position .verba-deep-return-position-main:hover {
+    filter: brightness(1.05);
+}
+
+#verba-deep-return-position .verba-deep-return-position-main:disabled {
+    opacity: .55 !important;
+}
+
+#verba-deep-return-position .verba-deep-return-position-close {
+    appearance: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 26px !important;
+    height: 30px !important;
+    min-width: 26px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 4px !important;
+    background: transparent !important;
+    color: inherit !important;
+    box-shadow: none !important;
+    font: inherit !important;
+    font-size: .72em !important;
+    line-height: 1 !important;
+    opacity: .5 !important;
+    cursor: pointer !important;
+}
+
+#verba-deep-return-position .verba-deep-return-position-close:hover {
+    opacity: .85 !important;
+    background: color-mix(in srgb, currentColor 7%, transparent) !important;
+}
+
+@media (max-width: 700px) {
+    #verba-deep-return-position.verba-deep-return-position {
+        max-width: calc(100vw - 12px) !important;
+    }
+
+    #verba-deep-return-position .verba-deep-return-position-main {
+        min-height: 32px !important;
+        padding: 6px 9px !important;
+        font-size: .84em !important;
+    }
+
+    #verba-deep-return-position .verba-deep-return-position-close {
+        height: 32px !important;
+        min-height: 32px !important;
+    }
+}
+
+
+/* v0.3.81: keep the return control above the ST composer, not inside it */
+#verba-deep-return-position.verba-deep-return-position {
+    pointer-events: auto !important;
+}
+
+@media (min-width: 701px) {
+    #verba-deep-return-position .verba-deep-return-position-main {
+        min-height: 28px !important;
+        padding: 4px 9px !important;
+        font-size: .8em !important;
+    }
+
+    #verba-deep-return-position .verba-deep-return-position-close {
+        height: 28px !important;
+        min-height: 28px !important;
+    }
+}
+
+
+/* v0.3.82: choose previous-output completion action inside the picker */
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-action {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 6px 8px !important;
+    border: 1px solid color-mix(in srgb, currentColor 14%, transparent) !important;
+    border-radius: 8px !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-action legend {
+    padding: 0 4px !important;
+    font-size: .78em !important;
+    opacity: .72 !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-action label {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    margin: 0 !important;
+    font-size: .82em !important;
+    white-space: nowrap !important;
+}
+
+#verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-action input {
+    margin: 0 !important;
+}
+
+@media (max-width: 600px) {
+    #verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-action {
+        gap: 6px !important;
+        padding: 5px 7px !important;
+    }
+
+    #verba-deep-request-overlay.verba-deep-previous-output-overlay .verba-deep-previous-output-action label {
+        font-size: .78em !important;
+    }
+}
+
+
+/* v0.3.83: tiny cue when ST full rerender failed but Verba Deep fallback succeeded */
+.mes.verba-deep-render-fallback-used .mes_text {
+    outline: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    outline-offset: 2px;
+}
+
+
+/* v0.3.90: hidden developer mode + QA lab */
+.verba-deep-version-tap-target {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+.verba-deep-developer-password-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 2147483647 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 12px !important;
+    background: rgba(0,0,0,.28) !important;
+}
+
+.verba-deep-developer-password-modal {
+    width: min(360px, calc(100vw - 24px)) !important;
+}
+
+.verba-deep-developer-lab {
+    border-style: dashed !important;
+}
+
+#verba-deep-settings #verba-deep-developer-output-split-lab,
+#verba-deep-settings #verba-deep-developer-relationship-lab {
+    border-style: solid !important;
+}
+
+.verba-deep-developer-lab > summary {
+    font-weight: 600 !important;
+}
+
+#verba-deep-quality-audit-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 3px !important;
+}
+
+.verba-deep-quality-audit-status-row {
+    display: flex !important;
+    align-items: flex-start !important;
+    justify-content: space-between !important;
+    gap: 10px !important;
+    margin-top: 8px !important;
+    padding: 7px 8px !important;
+    border-radius: 7px !important;
+    background: color-mix(in srgb, currentColor 5%, transparent) !important;
+    font-size: .82em !important;
+}
+
+.verba-deep-quality-audit-status-row > span {
+    opacity: .66 !important;
+    flex: 0 0 auto !important;
+}
+
+.verba-deep-quality-audit-status-row > b {
+    text-align: right !important;
+    font-weight: 500 !important;
+    overflow-wrap: anywhere !important;
+}
+
+
+
+
+
+/* v0.4.61: relationship-lab mobile readability */
+#verba-deep-developer-relationship-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 14px !important;
+    min-width: 0 !important;
+}
+
+.verba-deep-relationship-section {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 7px !important;
+    min-width: 0 !important;
+    padding-top: 2px !important;
+}
+
+.verba-deep-relationship-section + .verba-deep-relationship-section {
+    padding-top: 13px !important;
+    border-top: 1px solid color-mix(in srgb, var(--verba-deep-border) 24%, transparent) !important;
+}
+
+.verba-deep-relationship-section > label:not(.verba-deep-check-row),
+.verba-deep-relationship-section-title {
+    margin: 0 !important;
+    line-height: 1.4 !important;
+    font-weight: 700 !important;
+    overflow-wrap: anywhere !important;
+}
+
+.verba-deep-relationship-section select,
+.verba-deep-relationship-section input.text_pole {
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+.verba-deep-relationship-help {
+    margin: 1px 0 0 !important;
+    line-height: 1.62 !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+}
+
+.verba-deep-relationship-help > span {
+    display: block !important;
+    margin: 0 !important;
+}
+
+.verba-deep-relationship-help > span + span {
+    margin-top: 4px !important;
+}
+
+.verba-deep-relationship-help b {
+    font-weight: 700 !important;
+    opacity: 1 !important;
+}
+
+
+
+
+.verba-deep-relationship-notes {
+    padding-bottom: 2px !important;
+}
+
+@media (max-width: 600px) {
+    #verba-deep-developer-relationship-controls {
+        gap: 12px !important;
+    }
+
+    .verba-deep-relationship-section + .verba-deep-relationship-section {
+        padding-top: 11px !important;
+    }
+
+
+
+    .verba-deep-relationship-help {
+        line-height: 1.58 !important;
+    }
+}
+
+
+/* v0.3.94: explicit developer mode section */
+.verba-deep-developer-settings {
+    margin-top: 14px !important;
+}
+
+.verba-deep-developer-code-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 7px !important;
+    width: 100% !important;
+}
+
+.verba-deep-developer-code-row > input {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+
+.verba-deep-developer-code-row > button {
+    flex: 0 0 auto !important;
+    min-width: 72px !important;
+}
+
+.verba-deep-developer-enabled-note {
+    padding: 7px 9px !important;
+    margin-bottom: 8px !important;
+    border-radius: 7px !important;
+    background: color-mix(in srgb, currentColor 5%, transparent) !important;
+    font-size: .84em !important;
+    opacity: .82 !important;
+}
+
+.verba-deep-developer-lab {
+    margin: 6px 0 10px !important;
+    border-style: dashed !important;
+}
+
+@media (max-width: 600px) {
+    .verba-deep-developer-code-row {
+        gap: 6px !important;
+    }
+
+    .verba-deep-developer-code-row > button {
+        min-width: 68px !important;
+        padding-left: 9px !important;
+        padding-right: 9px !important;
+    }
+}
+
+
+/* v0.3.96: developer-only "한출의 맛" */
+.verba-deep-korean-flavor {
+    margin: 2px 0 !important;
+}
+
+#verba-deep-korean-flavor-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+}
+
+#verba-deep-korean-flavor-controls > label:not(.verba-deep-check-row) {
+    margin-top: 5px !important;
+}
+
+#verba-deep-korean-flavor-controls select {
+    width: 100% !important;
+}
+
+
+/* v0.3.97: developer-only "영출의 맛" */
+.verba-deep-english-flavor {
+    margin: 2px 0 !important;
+}
+
+#verba-deep-english-flavor-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+}
+
+#verba-deep-english-flavor-controls > label:not(.verba-deep-check-row) {
+    margin-top: 5px !important;
+}
+
+#verba-deep-english-flavor-controls select {
+    width: 100% !important;
+}
+
+
+
+/* v0.4.70: developer Kim Hongjin flavor lab */
+#verba-deep-developer-hongjin-controls {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 7px !important;
+    min-width: 0 !important;
+}
+
+#verba-deep-developer-hongjin-controls > label:not(.verba-deep-check-row) {
+    margin-top: 5px !important;
+    line-height: 1.4 !important;
+    font-weight: 700 !important;
+}
+
+#verba-deep-developer-hongjin-controls select {
+    width: 100% !important;
+}
+
+.verba-deep-hongjin-help {
+    line-height: 1.58 !important;
+    white-space: normal !important;
+    word-break: keep-all !important;
+    overflow-wrap: anywhere !important;
+}
+
+.verba-deep-hongjin-help > span {
+    display: block !important;
+}
+
+.verba-deep-hongjin-help > span + span {
+    margin-top: 4px !important;
+}
+
+
+/* v0.4.9: prompt-only presets */
+.verba-deep-prompt-presets {
+    margin: 2px 0 !important;
+}
+
+.verba-deep-prompt-preset-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.verba-deep-prompt-preset-actions .menu_button {
+    width: 100% !important;
+    min-width: 0 !important;
+}
+
+.verba-deep-prompt-preset-actions #verba-deep-prompt-preset-save {
+    grid-column: 1 / -1;
+}
+
+.verba-deep-prompt-preset-fields {
+    display: grid;
+    gap: 3px;
+    padding: 7px 8px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 6%, transparent);
+    line-height: 1.35;
+}
+
+.verba-deep-prompt-preset-fields small {
+    opacity: .62;
+}
+
+@media (max-width: 520px) {
+    .verba-deep-prompt-preset-actions {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+
+
+/* v0.4.69: Save stays full width.
+   "새로 시작" is a normal always-enabled action placed before Favorite. */
+.verba-deep-prompt-preset-actions #verba-deep-prompt-preset-save {
+    grid-column: 1 / -1;
+}
+
+.verba-deep-prompt-new-start-modal {
+    width: min(520px, calc(100vw - 24px)) !important;
+}
+
+.verba-deep-prompt-new-start-help {
+    line-height: 1.55 !important;
+    margin-bottom: 10px !important;
+}
+
+.verba-deep-prompt-new-start-actions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+}
+
+.verba-deep-prompt-new-start-actions > button {
+    width: 100% !important;
+    min-height: 58px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+    gap: 3px !important;
+    padding: 9px 11px !important;
+    text-align: left !important;
+    white-space: normal !important;
+    line-height: 1.35 !important;
+}
+
+.verba-deep-prompt-new-start-actions > button b,
+.verba-deep-prompt-new-start-actions > button small {
+    display: block !important;
+    width: 100% !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+}
+
+.verba-deep-prompt-new-start-actions > button small {
+    opacity: .7 !important;
+    font-size: .8em !important;
+    font-weight: 400 !important;
+}
+
+
+/* v0.4.10: prompt-slot ON/OFF */
+.verba-deep-prompt-slot {
+    margin: 8px 0 10px;
+}
+
+.verba-deep-prompt-slot-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
+.verba-deep-prompt-slot-head > label:first-child {
+    margin: 0 !important;
+}
+
+.verba-deep-prompt-slot-toggle {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 2px !important;
+    margin: 0 !important;
+    padding: 1px 2px !important;
+    min-width: 0 !important;
+    width: auto !important;
+    font-size: .72em !important;
+    font-weight: 600;
+    line-height: 1 !important;
+    opacity: .74;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.verba-deep-prompt-slot-toggle input[type="checkbox"] {
+    width: 15px !important;
+    height: 15px !important;
+    min-width: 15px !important;
+    max-width: 15px !important;
+    flex: 0 0 15px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+}
+
+.verba-deep-prompt-slot-toggle span {
+    display: inline-block !important;
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    letter-spacing: 0 !important;
+}
+
+.verba-deep-prompt-slot-off .verba-deep-prompt-slot-head > label:first-child,
+.verba-deep-prompt-slot-off textarea,
+.verba-deep-prompt-slot-off .verba-deep-help {
+    opacity: .48;
+}
+
+.verba-deep-prompt-slot-off .verba-deep-prompt-slot-toggle {
+    opacity: 1;
+}
+
+
+/* v0.4.11: recent prompt-preset backups */
+.verba-deep-prompt-preset-backups {
+    margin-top: 8px;
+}
+
+.verba-deep-prompt-preset-backups > summary {
+    cursor: pointer;
+    font-size: .9em;
+}
+
+.verba-deep-prompt-preset-backup-content {
+    display: grid;
+    gap: 6px;
+    padding-top: 6px;
+}
+
+.verba-deep-prompt-preset-backup-list {
+    display: grid;
+    gap: 5px;
+}
+
+.verba-deep-prompt-preset-backup-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 7px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #888) 42%, transparent);
+    border-radius: 8px;
+}
+
+.verba-deep-prompt-preset-backup-meta {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.verba-deep-prompt-preset-backup-meta b,
+.verba-deep-prompt-preset-backup-meta small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.verba-deep-prompt-preset-backup-meta small,
+.verba-deep-prompt-preset-backup-empty {
+    opacity: .68;
+    font-size: .8em;
+}
+
+.verba-deep-prompt-preset-backup-restore {
+    width: auto !important;
+    min-width: 52px !important;
+    margin: 0 !important;
+    padding: 4px 7px !important;
+    font-size: .78em !important;
+}
+
+
+/* v0.4.14: expression detail */
+.verba-deep-expression-detail { margin: 2px 0 !important; }
+
+
+/* v0.4.19: compact prompt toggles + backup preview/delete */
+.verba-deep-prompt-preset-backup-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.verba-deep-prompt-preset-backup-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: nowrap;
+}
+
+.verba-deep-prompt-preset-backup-actions .menu_button {
+    width: auto !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    padding: 4px 6px !important;
+    font-size: .75em !important;
+    line-height: 1.1 !important;
+}
+
+.verba-deep-prompt-preset-backup-delete {
+    opacity: .72;
+}
+
+.verba-deep-prompt-backup-preview-modal {
+    width: min(620px, calc(100vw - 24px)) !important;
+    max-height: min(84vh, 760px) !important;
+}
+
+.verba-deep-prompt-backup-preview-modal .verba-deep-modal-header > div {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+}
+
+.verba-deep-prompt-backup-preview-modal .verba-deep-modal-header small {
+    opacity: .62;
+    font-size: .78em;
+}
+
+.verba-deep-backup-preview-list {
+    display: grid;
+    gap: 8px;
+}
+
+.verba-deep-backup-preview-slot {
+    display: grid;
+    gap: 5px;
+    padding: 8px 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #888) 42%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--verba-deep-text) 4%, transparent);
+}
+
+.verba-deep-backup-preview-slot-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.verba-deep-backup-preview-slot-head b {
+    font-size: .9em;
+}
+
+.verba-deep-backup-preview-state {
+    flex: 0 0 auto;
+    padding: 2px 6px;
+    border-radius: 999px;
+    font-size: .7em;
+    font-weight: 700;
+    line-height: 1.2;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #888) 55%, transparent);
+    opacity: .72;
+}
+
+.verba-deep-backup-preview-state.is-on {
+    opacity: .95;
+}
+
+.verba-deep-backup-preview-slot pre {
+    margin: 0;
+    padding: 7px 8px;
+    max-height: 180px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--verba-deep-text) 6%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: .82em;
+    line-height: 1.4;
+}
+
+@media (max-width: 520px) {
+    .verba-deep-prompt-preset-backup-row {
+        grid-template-columns: 1fr;
+    }
+
+    .verba-deep-prompt-preset-backup-actions {
+        justify-content: flex-end;
+    }
+}
+
+
+/* v0.4.20: backup preview must not collapse the extension drawer */
+.verba-deep-prompt-backup-preview-overlay {
+    touch-action: manipulation;
+}
+
+.verba-deep-backup-preview-close {
+    width: 28px !important;
+    min-width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 7px !important;
+    background: transparent !important;
+    color: inherit !important;
+    cursor: pointer;
+    font: inherit !important;
+    line-height: 1 !important;
+    touch-action: manipulation;
+}
+
+
+/* v0.4.21: prevent backup-preview close from collapsing Verba Deep drawer */
+#verba-deep-settings > .verba-deep-prompt-backup-preview-overlay {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+}
+
+.verba-deep-prompt-backup-preview-overlay.verba-deep-prompt-backup-preview-closing {
+    background: transparent !important;
+    pointer-events: auto !important;
+}
+
+.verba-deep-prompt-backup-preview-overlay.verba-deep-prompt-backup-preview-closing
+.verba-deep-prompt-backup-preview-modal {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+.verba-deep-prompt-backup-preview-modal {
+    transition: opacity 60ms linear;
+}
+
+
+/* v0.4.23: prompt preset duplicate/favorite + current applied rules */
+#verba-deep-prompt-preset-favorite.is-favorite {
+    font-weight: 700 !important;
+}
+
+.verba-deep-current-rules {
+    margin: 2px 0 !important;
+}
+
+.verba-deep-current-rules #verba-deep-current-rules-content {
+    display: grid;
+    gap: 8px;
+}
+
+.verba-deep-current-rules-note {
+    padding: 7px 8px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--verba-deep-text) 6%, transparent);
+    font-size: .82em;
+    line-height: 1.4;
+    opacity: .78;
+}
+
+.verba-deep-current-rule-grid {
+    display: grid;
+    gap: 7px;
+}
+
+.verba-deep-current-rule-card {
+    display: grid;
+    gap: 6px;
+    padding: 8px 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #888) 42%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--verba-deep-text) 3%, transparent);
+}
+
+.verba-deep-current-rule-card.is-muted {
+    opacity: .58;
+}
+
+.verba-deep-current-rule-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.verba-deep-current-rule-card-head > b {
+    font-size: .9em;
+}
+
+.verba-deep-current-rule-card-head > span {
+    flex: 0 0 auto;
+    font-size: .72em;
+    opacity: .72;
+}
+
+.verba-deep-current-rule-card pre {
+    margin: 0;
+    padding: 7px 8px;
+    max-height: 150px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--verba-deep-text) 5%, transparent);
+    color: inherit;
+    font: inherit;
+    font-size: .8em;
+    line-height: 1.4;
+}
+
+.verba-deep-current-rule-lines {
+    display: grid;
+    gap: 4px;
+}
+
+.verba-deep-current-rule-lines > div {
+    display: grid;
+    grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+    font-size: .8em;
+    line-height: 1.35;
+}
+
+.verba-deep-current-rule-lines span {
+    opacity: .65;
+}
+
+.verba-deep-current-rule-lines b {
+    min-width: 0;
+    font-weight: 500;
+    overflow-wrap: anywhere;
+}
+
+@media (min-width: 760px) {
+    .verba-deep-current-rule-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+
+/* v0.4.29: reliable inline backup preview */
+.verba-deep-prompt-preset-backup-inline-preview {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 7px;
+    margin-top: 2px;
+    padding-top: 7px;
+    border-top: 1px dashed color-mix(in srgb, var(--SmartThemeBorderColor, #888) 42%, transparent);
+}
+
+.verba-deep-backup-inline-preview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.verba-deep-backup-inline-preview-head b {
+    font-size: .84em;
+}
+
+.verba-deep-backup-inline-preview-head small {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: .62;
+    font-size: .74em;
+}
+
+.verba-deep-prompt-preset-backup-inline-preview .verba-deep-backup-preview-list {
+    display: grid;
+    gap: 6px;
+}
+
+.verba-deep-prompt-preset-backup-inline-preview .verba-deep-backup-preview-slot {
+    padding: 7px 8px;
+}
+
+.verba-deep-prompt-preset-backup-inline-preview .verba-deep-backup-preview-slot pre {
+    max-height: 140px;
+}
+
+
+/* v0.4.36: beginner chat user character guide */
+.verba-deep-beginner-character-guide {
+    margin: 2px 0 !important;
+}
+
+#verba-deep-beginner-character-controls {
+    display: grid;
+    gap: 8px;
+}
+
+.verba-deep-beginner-group {
+    display: grid;
+    gap: 6px;
+    padding: 8px 9px;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #888) 40%, transparent);
+    border-radius: 9px;
+    background: color-mix(in srgb, var(--verba-deep-text) 3%, transparent);
+}
+
+.verba-deep-beginner-group > b,
+.verba-deep-beginner-group > label > b {
+    font-size: .9em;
+}
+
+.verba-deep-beginner-group small {
+    opacity: .58;
+    font-weight: 500;
+}
+
+.verba-deep-beginner-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+}
+
+.verba-deep-beginner-choice {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 5px !important;
+    min-width: 0;
+    margin: 0 !important;
+    padding: 5px 6px;
+    border-radius: 7px;
+    background: color-mix(in srgb, var(--verba-deep-text) 5%, transparent);
+    cursor: pointer;
+}
+
+.verba-deep-beginner-choice input[type="checkbox"] {
+    width: 15px !important;
+    height: 15px !important;
+    min-width: 15px !important;
+    flex: 0 0 15px !important;
+    margin: 0 !important;
+}
+
+.verba-deep-beginner-choice span {
+    min-width: 0;
+    font-size: .78em;
+    line-height: 1.25;
+}
+
+@media (max-width: 420px) {
+    .verba-deep-beginner-choice-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+
+/* v0.4.37: beginner custom personality/speech notes */
+.verba-deep-beginner-group textarea {
+    width: 100%;
+    min-height: 54px;
+    resize: vertical;
+    font-size: .82em;
+}
+
+
+/* v0.4.102: compact only the extension-tab settings panel.
+ * Composer icons, message controls, selection popups, and modal dialogs stay unchanged. */
+#verba-deep-settings > .inline-drawer > .inline-drawer-content {
+    font-size: .86em;
+}
+
+#verba-deep-settings .inline-drawer-content {
+    gap: 5px !important;
+    padding: 5px 7px 8px !important;
+}
+
+#verba-deep-settings label {
+    margin-top: 1px !important;
+    line-height: 1.3;
+}
+
+#verba-deep-settings .verba-deep-note {
+    padding: 6px 8px;
+    border-radius: 8px;
+    line-height: 1.32;
+}
+
+#verba-deep-settings .verba-deep-help {
+    margin-top: -2px;
+    font-size: .84em;
+    line-height: 1.32 !important;
+}
+
+#verba-deep-settings select.text_pole,
+#verba-deep-settings input.text_pole {
+    box-sizing: border-box;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 2px 6px !important;
+    font-size: .92em !important;
+}
+
+#verba-deep-settings textarea.text_pole {
+    box-sizing: border-box;
+    padding: 5px 6px !important;
+    font-size: .88em !important;
+    line-height: 1.32 !important;
+}
+
+#verba-deep-settings button.menu_button {
+    height: auto !important;
+    min-height: 29px !important;
+    padding: 4px 7px !important;
+    font-size: .9em !important;
+    line-height: 1.15 !important;
+}
+
+#verba-deep-settings .verba-deep-profile-row,
+#verba-deep-settings .verba-deep-prompt-preset-actions,
+#verba-deep-settings .verba-deep-prompt-preset-backup-actions {
+    gap: 4px !important;
+}
+
+#verba-deep-settings .verba-deep-profile-row button {
+    flex-basis: 72px;
+    width: 72px !important;
+    min-width: 72px;
+}
+
+#verba-deep-settings .verba-deep-check-row {
+    gap: 6px;
+    min-height: 29px;
+    padding: 4px 6px;
+    border-radius: 7px;
+}
+
+#verba-deep-settings .verba-deep-check-row input[type="checkbox"] {
+    width: 15px !important;
+    height: 15px !important;
+    min-width: 15px !important;
+    flex-basis: 15px !important;
+}
+
+#verba-deep-settings .verba-deep-tool-details,
+#verba-deep-settings .verba-deep-name-lock-manager {
+    margin: 1px 0;
+    border-radius: 8px;
+}
+
+#verba-deep-settings .verba-deep-tool-details > summary,
+#verba-deep-settings .verba-deep-name-lock-manager > summary {
+    gap: 4px;
+    padding: 6px 8px;
+    line-height: 1.25;
+}
+
+#verba-deep-settings .verba-deep-tool-details-content {
+    gap: 5px;
+    padding: 6px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-manager-content {
+    gap: 5px;
+    padding: 0 6px 6px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-manager-content > .verba-deep-help:first-child {
+    margin-top: 5px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-list,
+#verba-deep-settings .verba-deep-name-lock-group,
+#verba-deep-settings .verba-deep-name-lock-row {
+    gap: 4px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-group,
+#verba-deep-settings .verba-deep-name-lock-row {
+    padding: 5px;
+    border-radius: 7px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-group-header,
+#verba-deep-settings .verba-deep-name-lock-pair,
+#verba-deep-settings .verba-deep-name-lock-row-actions {
+    gap: 4px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-row-actions button {
+    min-width: 50px;
+}
+
+#verba-deep-settings .verba-deep-name-lock-empty {
+    padding: 6px;
+    border-radius: 7px;
+}
+
+#verba-deep-settings .verba-deep-profile-stats-content,
+#verba-deep-settings .verba-deep-rule-priority-list {
+    gap: 4px;
+}
+
+#verba-deep-settings .verba-deep-stat-row {
+    grid-template-columns: 19px minmax(0, 1fr);
+    gap: 1px 5px;
+    padding: 5px 6px;
+    border-radius: 7px;
+}
+
+#verba-deep-settings .verba-deep-rule-priority-row {
+    grid-template-columns: 19px minmax(0, 1fr) auto;
+    gap: 5px;
+    min-height: 31px;
+    padding: 3px 4px 3px 6px;
+    border-radius: 7px;
+}
+
+#verba-deep-settings .verba-deep-rule-priority-actions {
+    gap: 3px;
+}
+
+#verba-deep-settings .verba-deep-rule-priority-actions button.menu_button {
+    width: 26px !important;
+    min-width: 26px !important;
+    height: 25px !important;
+    min-height: 25px !important;
+    padding: 0 !important;
+}
+
+#verba-deep-settings .verba-deep-quality-audit-status-row {
+    min-height: 0 !important;
+    margin-top: 4px !important;
+    padding: 5px 6px !important;
+    gap: 5px 8px !important;
+    border-radius: 7px !important;
+    line-height: 1.3 !important;
+}
+
+#verba-deep-settings .verba-deep-developer-settings {
+    margin-top: 7px !important;
+}
+
+#verba-deep-settings .verba-deep-developer-enabled-note {
+    margin-bottom: 4px !important;
+    padding: 5px 7px !important;
+}
+
+#verba-deep-settings .verba-deep-developer-code-row {
+    gap: 4px !important;
+}
+
+#verba-deep-settings .verba-deep-developer-code-row > button {
+    min-width: 60px !important;
+}
+
+#verba-deep-settings .verba-deep-developer-lab {
+    margin: 3px 0 5px !important;
+}
+
+#verba-deep-settings #verba-deep-developer-relationship-controls {
+    gap: 8px !important;
+}
+
+#verba-deep-settings .verba-deep-relationship-section {
+    gap: 4px !important;
+    padding-top: 1px !important;
+}
+
+#verba-deep-settings .verba-deep-relationship-section + .verba-deep-relationship-section {
+    padding-top: 7px !important;
+}
+
+#verba-deep-settings #verba-deep-developer-hongjin-controls {
+    gap: 4px !important;
+}
+
+#verba-deep-settings #verba-deep-developer-hongjin-controls > label:not(.verba-deep-check-row) {
+    margin-top: 2px !important;
+}
+
+#verba-deep-settings #verba-deep-korean-flavor-controls,
+#verba-deep-settings #verba-deep-english-flavor-controls {
+    gap: 3px !important;
+}
+
+#verba-deep-settings #verba-deep-korean-flavor-controls > label:not(.verba-deep-check-row),
+#verba-deep-settings #verba-deep-english-flavor-controls > label:not(.verba-deep-check-row) {
+    margin-top: 2px !important;
+}
+
+#verba-deep-settings .verba-deep-relationship-help,
+#verba-deep-settings .verba-deep-hongjin-help {
+    line-height: 1.4 !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-preset-fields {
+    gap: 4px !important;
+    padding: 5px 6px !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-preset-backup-actions .menu_button {
+    min-height: 25px !important;
+    padding: 3px 5px !important;
+    font-size: .78em !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-preset-backup-content,
+#verba-deep-settings .verba-deep-prompt-preset-backup-list,
+#verba-deep-settings .verba-deep-prompt-preset-backup-inline-preview .verba-deep-backup-preview-list {
+    gap: 4px !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-preset-backup-row,
+#verba-deep-settings .verba-deep-prompt-preset-backup-inline-preview .verba-deep-backup-preview-slot {
+    padding: 5px 6px !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-slot {
+    margin: 4px 0 5px !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-slot-head {
+    margin-bottom: 3px !important;
+}
+
+#verba-deep-settings .verba-deep-prompt-preset-backups {
+    margin-top: 4px;
+}
+
+#verba-deep-settings .verba-deep-prompt-preset-backup-content {
+    padding-top: 4px;
+}
+
+#verba-deep-settings .verba-deep-tuning-choice,
+#verba-deep-settings .verba-deep-context-choice {
+    padding: 5px 6px !important;
+}
+
+#verba-deep-settings .verba-deep-tuning-control-group,
+#verba-deep-settings .verba-deep-tuning-options {
+    gap: 3px !important;
+}
+
+#verba-deep-settings .verba-deep-tuning-options span {
+    min-height: 32px !important;
+    padding: 3px 2px !important;
+    line-height: 1.12 !important;
+}
+
+#verba-deep-settings .verba-deep-current-rules #verba-deep-current-rules-content,
+#verba-deep-settings .verba-deep-current-rule-grid,
+#verba-deep-settings .verba-deep-current-rule-lines {
+    gap: 4px !important;
+}
+
+#verba-deep-settings .verba-deep-current-rules-note {
+    padding: 5px 6px !important;
+}
+
+#verba-deep-settings .verba-deep-current-rule-card {
+    gap: 4px !important;
+    padding: 6px 7px !important;
+    border-radius: 7px !important;
+}
+
+#verba-deep-settings #verba-deep-beginner-character-controls {
+    gap: 5px;
+}
+
+#verba-deep-settings .verba-deep-beginner-group {
+    gap: 4px;
+    padding: 6px 7px;
+    border-radius: 7px;
+}
+
+#verba-deep-settings .verba-deep-beginner-choice-grid {
+    gap: 3px;
+}
+
+#verba-deep-settings .verba-deep-beginner-choice {
+    gap: 4px !important;
+    padding: 4px 5px;
+    border-radius: 6px;
+}
+
+#verba-deep-settings .verba-deep-beginner-choice input[type="checkbox"] {
+    width: 14px !important;
+    height: 14px !important;
+    min-width: 14px !important;
+    flex-basis: 14px !important;
+}
+
+#verba-deep-settings #verba-deep-base-editor .verba-deep-base-buttons {
+    gap: 4px !important;
+}
+
+#verba-deep-settings #verba-deep-base-editor .verba-deep-base-buttons > button.menu_button {
+    min-height: 28px !important;
+    padding: 4px 7px !important;
+    font-size: clamp(10px, 2.55vw, 12px) !important;
+    line-height: 1.2 !important;
+}
+
+#verba-deep-settings #verba-deep-base-editor textarea {
+    min-height: 120px;
+    max-height: 48vh;
+}
+
+#verba-deep-settings #verba-deep-dialogue-ending-settings textarea {
+    min-height: 68px !important;
+}
+
+@media (max-width: 600px) {
+    #verba-deep-settings > .inline-drawer > .inline-drawer-content {
+        font-size: .84em;
+    }
+
+    #verba-deep-settings .inline-drawer-content {
+        padding-inline: 5px !important;
+    }
+}
+
+/* The auto-input switch uses the browser's native checkmark, not pseudo-elements. */
+#verba-deep-settings #verba-deep-auto-input {
+    appearance: auto !important;
+    -webkit-appearance: checkbox !important;
+    accent-color: var(--verba-deep-accent) !important;
+    background: revert !important;
+    border: revert !important;
+    border-radius: revert !important;
+    box-shadow: none !important;
+    filter: none !important;
+    opacity: 1 !important;
+}
+
+#verba-deep-settings #verba-deep-auto-input::before,
+#verba-deep-settings #verba-deep-auto-input::after {
+    content: none !important;
+    display: none !important;
+}
+
+#verba-deep-auto-input-status {
+    margin-inline-start: auto;
+    flex: 0 0 auto;
+    color: var(--verba-deep-text);
+    opacity: 1;
+    font-weight: 700;
+}
+#verba-deep-settings #verba-deep-output-timing {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 300px;
+    overflow-y: auto;
+    font: inherit;
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: inherit;
+    margin: 8px 0;
+}
