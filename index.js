@@ -51,7 +51,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.101';
+const EXTENSION_VERSION = '0.5.102';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4458,6 +4458,13 @@ function hongjinVoiceRewriteFailure(segment, translation, firstPassTranslation =
     if (/five\s+more\s+minutes/iu.test(source)
         && /^(?:딱)?(?:5|오)분만더(?:있어|쉬어)?$/u.test(compactTarget)) {
         return 'literal-duration-fragment';
+    }
+    if (
+        settings.developerHongjinProfanity === 'high'
+        || settings.developerHongjinTranscreation === 'maximum'
+    ) {
+        const voiceTexture = /(?:씨발|시발|존나|좆|지랄|개같|빌어먹|환장|처(?:먹|박|붙|자|일어나|가)|뒈|뒤져|냅둬|꼴|잘도|어련|하시지|봐준다|용케|아주|굳이|죽어도|썩|당장|꾸물)/u;
+        if (!voiceTexture.test(target)) return 'bland-high-intensity-voice';
     }
     return '';
 }

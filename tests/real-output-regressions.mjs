@@ -39,7 +39,7 @@ const voicePrompt = buildHongjinVoiceRewritePrompt({
     speakerIdentity: identity,
     settings,
 });
-assert.match(voicePrompt, /BLANK-PAGE DIALOGUE REWRITING/i);
+assert.match(voicePrompt, /KOREAN-ONLY CHARACTER REAUTHORING/i);
 assert.match(voicePrompt, /Never aim a person-directed curse at USER/);
 assert.match(voicePrompt, /Never aim a person-directed curse at USER/);
 assert.match(voicePrompt, /ACROSS THE FULL DIALOGUE SET/i);

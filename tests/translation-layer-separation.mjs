@@ -46,12 +46,14 @@ const voicePrompt = buildHongjinVoiceRewritePrompt({
         developerHongjinTeasing: 'active',
     },
 });
-assert.match(voicePrompt, /BLANK-PAGE DIALOGUE REWRITING/);
-assert.match(voicePrompt, /Do not translate the supplied source lines/);
+assert.match(voicePrompt, /KOREAN-ONLY CHARACTER REAUTHORING/);
+assert.match(voicePrompt, /No foreign source text is supplied/);
 assert.match(voicePrompt, /write from blank/i);
 assert.match(voicePrompt, /ACROSS THE FULL DIALOGUE SET/);
 assert.match(voicePrompt, /ONLY CONTENT BOUNDARY/);
 assert.match(voicePrompt, /generic serious man/i);
+assert.doesNotMatch(voicePrompt, /You really thought that would work/);
+assert.doesNotMatch(voicePrompt, /SCENE CONTEXT/);
 assert.match(voicePrompt, /"reauthoring":"maximum"/);
 assert.match(voicePrompt, /"teasing":"active"/);
 

@@ -72,10 +72,10 @@ const prompt = buildMadKoreanTargetedAuditPrompt({
     },
     settings: { developerHongjinFlavorEnabled: true, developerHongjinProfanity: 'natural' },
 });
-assert.match(prompt, /FINAL BLANK-PAGE REWRITE/);
+assert.match(prompt, /KOREAN-ONLY FINAL MANUSCRIPT REWRITE/);
 assert.match(prompt, /For EVERY row/);
-assert.match(prompt, /Do not proofread current_translation/i);
-assert.match(prompt, /from a blank page/i);
+assert.match(prompt, /current_translation only as a rough scene memo/i);
+assert.match(prompt, /original contemporary Korean fiction/i);
 assert.match(prompt, /only content boundary/i);
 assert.match(prompt, /throw the entire row away/i);
 assert.match(prompt, /every local_flags item/i);
