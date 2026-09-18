@@ -5269,6 +5269,85 @@ ROWS
 ${JSON.stringify(rows)}`;
 }
 
+export function buildMadKoreanIntegratedRewritePrompt({
+    segments,
+    currentTranslations,
+    speakerIdentity = {},
+    settings = {},
+    nameTokens = [],
+}) {
+    const translations = currentTranslations instanceof Map
+        ? currentTranslations
+        : new Map(Object.entries(currentTranslations || {}));
+    const characterName = String(speakerIdentity.characterName || '').trim() || 'TARGET CHARACTER';
+    const userName = String(speakerIdentity.userName || '').trim() || 'USER';
+    const profanity = ['low', 'natural', 'high'].includes(settings.developerHongjinProfanity)
+        ? settings.developerHongjinProfanity
+        : 'natural';
+    const register = value => value === 'banmal'
+        ? '반말'
+        : value === 'jondaetmal' ? '자연스러운 현대 존댓말/해요체' : '초안과 관계 문맥에 맞는 말투';
+    const rows = (segments || []).map(segment => ({
+        id: String(segment.id || ''),
+        type: String(segment.type || ''),
+        scope: String(segment.outputScope || ''),
+        korean_fact_draft: String(translations.get(segment.id) || ''),
+    }));
+    const hongjin = settings.developerHongjinFlavorEnabled === true;
+
+    return `MAD KOREAN — SOURCELESS INTEGRATED AUTHOR PASS
+You receive ONLY a Korean fact draft. The foreign source has deliberately been removed so you cannot imitate its syntax. Rewrite the entire draft once as finished contemporary Korean fiction. Return every id exactly once.
+
+ABSOLUTE WORK METHOD
+1. Treat korean_fact_draft as a fact ledger, never as prose worth preserving. Preserve its events, actor/action/target, ownership, referents, chronology, spatial direction, numbers, names, speaker/listener, speech act, relationship, consent/refusal, emotional direction, uncertainty and meaningful intensity.
+2. Mentally erase every sentence. From those facts, write each row again from a blank page as if a capable Korean novelist had originally created the scene in Korean.
+3. The draft's vocabulary, syntax, clause order, sentence boundaries, metaphors, connective logic, explicit pronouns, rhythm and explanatory packaging have zero authority. Freely replace, compress, expand, split, merge and reorder expression inside the same id.
+4. Do not add, remove or reverse a scene assertion. Never invent a gesture, reassurance, accusation, promise, motive, reaction, threat, joke premise, relationship development or physical detail.
+5. Do not perform light proofreading. Every narration and dialogue row must be actively reconsidered. Exact retention is acceptable only for protected code/tag material, fixed names/numbers, or wording that is independently the most natural possible Korean.
+
+SCOPE CONTRACT
+- narration: polished but easy contemporary Korean fiction. Prefer concrete natural verbs and Korean information flow. Reject literal sensory collocations, abstract explanation, repeated explicit subjects, translated similes and phrases such as “부드러운 소리를 냈다” or “무뚝뚝하지 않게 말했다” when ordinary Korean would express the moment directly.
+- other_dialogue: genuinely speakable Korean for that speaker. Preserve the actual speech act and social force. Never import ${JSON.stringify(characterName)}'s profanity, slyness or vulgarity. Translate profanity pragmatically; a rude observation must not become a new disaster claim or threat.
+- target_dialogue: confirmed direct speech by ${JSON.stringify(characterName)}. ${hongjin ? 'The Kim Hong-jin authorship contract below is mandatory.' : 'Use natural contemporary Korean without invented character roughness.'}
+- tagged_content: preserve tags, attributes, CSS/code, tokens, URLs, emoji, numbers, punctuation and layout exactly; rewrite only visible natural-language text.
+
+KOREAN INTEGRITY — PASS/FAIL
+- Read the Korean without imagining any foreign source. Reject translationese, dictionary phrasing, impossible adjective–noun or sensation–verb combinations, dangling modifiers and explanatory redundancy.
+- Reject fused or damaged words, duplicated particles, missing particles, missing head nouns, incomplete predicates and corrupted forms such as “농담은이”. A modifier such as “접이식” must retain its required noun. Every sentence must be immediately understandable and physically picturable.
+- Preserve quotation envelopes, ellipsis characters/count, paragraph role, ids and protected tokens exactly.
+
+IDENTITY AND REGISTER
+TARGET=${JSON.stringify(characterName)}; USER=${JSON.stringify(userName)}
+TARGET→USER=${register(settings.developerMadKoreanTargetToUserRegister)}
+USER→TARGET=${register(settings.developerMadKoreanUserToTargetRegister)}
+
+${hongjin ? `KIM HONG-JIN AUTHORSHIP — REQUIRED ON EVERY target_dialogue ROW
+- Do not preserve or lightly edit the draft line. Preserve only its proposition, listener, speech act, relationship, emotional direction and scene stakes. Write from blank what Kim Hong-jin himself would actually say in Korean.
+- His identity is sly, shameless, playful, tsundere-like, rough, vulgar and casually profane. Build it into verbs, particles, contractions, endings, information order, dry bravado, brusque care, shameless understatement and the final afterbeat. A generic line with a detachable curse fails.
+- Quiet explanation, injury, exhaustion, concern, sincerity and muttering do not disable the voice. Suppress forced comedy only. Concealed concern should become a brusque order, complaint or jab; self-report should sound dismissive or brazen rather than clinical.
+- profanity=${profanity.toUpperCase()}. ${profanity === 'high'
+        ? 'Most compatible target rows MUST visibly carry varied contemporary profanity, vulgar intensification, crude idiom, rough verb or profanity-shaped rhythm. A mostly clean set fails.'
+        : profanity === 'natural'
+            ? 'Compatible multi-line target dialogue MUST NOT remain uniformly clean; use at least one concrete coarse/profane mechanism naturally.'
+            : 'Preserve source roughness and keep a distinctive raw cadence; add explicit profanity only at a strong compatible beat.'}
+- USER ${JSON.stringify(userName)} may hear profanity aimed at the situation, pain, exhaustion, urgency, obstacle, enemy, NPC, self or free emotion. Never make USER the degrading object or name of a curse. Never use misogynistic or gender-degrading abuse.
+- Never compensate for bland target dialogue by making other_dialogue rougher. If USER/NPC carries the configured vulgarity while ${JSON.stringify(characterName)} remains generic, rewrite both scopes correctly.
+- Across the complete set, vary the mechanism. Do not repeat one curse, “응?/어?” hook, fake courtesy, terminal tag or paternal coaxing. Preserve serious weight without sanitizing the character.` : ''}
+
+FINAL SILENT AUDIT
+- Enumerate all rows by scope. Confirm that every target_dialogue row has the required voice and no other scope inherited it.
+- Confirm that no Korean row contains a broken word, doubled particle, missing noun, incomplete predicate or literal foreign collocation.
+- Confirm facts and ids are unchanged. Output no analysis, alternatives, labels or commentary.
+
+Return strict JSON only:
+{"segments":[{"id":"seg_0001","translation":"백지에서 다시 쓴 완성 한국어"}]}
+
+${nameTokenInstruction(nameTokens, speakerIdentity)}
+
+KOREAN FACT-DRAFT ROWS
+${JSON.stringify(rows)}`;
+}
+
 export function buildMadKoreanTargetedAuditPrompt({
     segments,
     currentTranslations,

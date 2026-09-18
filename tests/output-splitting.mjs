@@ -99,7 +99,7 @@ for(const row of requests){
 // Real whole-output pipeline: planning and final verification run once for the
 // whole message, not once per chunk; only the main translation is divided.
 Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFlavorEnabled:true,developerMinimalPromptEnabled:false,developerOutputSplitCount:3});
-let planned=0,classified=0,audited=0,targetedAudited=0;
+let planned=0,classified=0,audited=0,integratedRewritten=0;
 const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  normalizedCharacterNameLocks:()=>[{source:'Hong-jin',target:'홍진'}],
  planRepeatedRoleTermLocks:async s=>{planned++;assert.equal(s.segments.length,segmented.segments.length);return [];},
@@ -107,12 +107,12 @@ const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  repairRepeatedRoleTermConsistency:async()=>{},repairProtectedTokenIntegrity:async()=>{},
  findBannedWords:()=>[],findUntranslatedSegments:()=>[],repairIndivisibleIdentityNames:t=>t,repairStrictCanonicalIdentityNames:t=>t,repairOutputIdentityNames:t=>t,repairKoreanParticleAlternatives:t=>t,repairDialogueQuotationEnvelope:t=>t,
  runHongjinVoiceRewrite:async({segmented:s})=>{assert.equal(s.segments.length,segmented.segments.length);},
- runMadKoreanTargetedAudit:async({segmented:s})=>{targetedAudited++;assert.equal(s.segments.length,segmented.segments.length);},
+ runMadKoreanIntegratedRewrite:async({segmented:s})=>{integratedRewritten++;assert.equal(s.segments.length,segmented.segments.length);},
  runExperimentalQualityAudit:async({segmented:s})=>{audited++;assert.equal(s.segments.length,segmented.segments.length);},
  buildSourceMap:(_s,_t,result)=>[{start:0,end:result.length}],console};
 const full=Function(...Object.keys(fullEnv),between('function normalizeTaggedOutputTranslations(', 'async function repairSegmentsByOutputScope(')+between('async function translateOutputText(', 'function inputIdentitySpellingContext(')+'\nreturn translateOutputText;')(...Object.values(fullEnv));
 requests=[];const fullResult=await full(source,{speakerIdentity:identity});
-assert.ok(requests.length>=3);assert.equal(planned,1);assert.equal(classified,1);assert.equal(targetedAudited,1);assert.equal(audited,1);
+assert.ok(requests.length>=3);assert.equal(planned,1);assert.equal(classified,1);assert.equal(integratedRewritten,1);assert.equal(audited,1);
 assert.match(fullResult.translation,/홍진/);assert.match(fullResult.translation,/`CODE_UNCHANGED`/);assert.match(fullResult.translation,/<Info_panel>/);
 // Minimal uses ONLY its own prompt regardless of the independent split setting.
 for(const count of [1,2,3]){

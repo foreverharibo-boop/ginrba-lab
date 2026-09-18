@@ -15,6 +15,7 @@ import {
     buildInputPrompt,
     buildIdentityNameFallbackPrompt,
     buildMadFlashV2AuditPrompt,
+    buildMadKoreanIntegratedRewritePrompt,
     buildMultiSelectionPrompt,
     buildNameHistoryFormsPrompt,
     buildNameMatchPrompt,
@@ -51,7 +52,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.110';
+const EXTENSION_VERSION = '0.5.111';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4733,6 +4734,78 @@ async function runMadKoreanTargetedAudit({
     }
 }
 
+async function runMadKoreanIntegratedRewrite({
+    segmented,
+    translations,
+    speakerScopes,
+    speakerIdentity,
+    options,
+}) {
+    if (!madKoreanExclusiveMode()) {
+        return { checked: 0, changed: 0 };
+    }
+
+    const candidates = (segmented.segments || []).map(segment => ({
+        ...segment,
+        outputScope: outputScopeForSegment(segment, speakerScopes),
+    }));
+    if (!candidates.length) return { checked: 0, changed: 0 };
+
+    const originalTranslations = new Map(translations);
+    try {
+        const prompt = buildMadKoreanIntegratedRewritePrompt({
+            segments: candidates,
+            currentTranslations: translations,
+            speakerIdentity,
+            settings,
+            nameTokens: segmented.nameTokens || [],
+        });
+        const expected = candidates.map(segment => ({
+            id: segment.id,
+            type: segment.type,
+            text: String(translations.get(segment.id) || ''),
+        }));
+        const rewritten = await requestSegments(prompt, expected, {
+            ...options,
+            stage: 'mad-integrated-author-rewrite',
+        });
+
+        let changed = 0;
+        for (const segment of candidates) {
+            const before = String(translations.get(segment.id) || '');
+            const responseValue = String(rewritten.get(segment.id) || '');
+            if (!responseValue.trim()) {
+                throw new Error(`통합 재작성에서 빈 구간이 반환됨: ${segment.id}`);
+            }
+            const after = repairDialogueQuotationEnvelope(
+                repairKoreanParticleAlternatives(
+                    repairStrictCanonicalIdentityNames(
+                        repairCanonicalKoreanVocatives(
+                            repairIndivisibleIdentityNames(responseValue, speakerIdentity),
+                            segment,
+                            canonicalKoreanIdentityNames(speakerIdentity),
+                            segmented.nameTokens || [],
+                        ),
+                        speakerIdentity,
+                    ),
+                ),
+                segment,
+            );
+            translations.set(segment.id, after);
+            if (after !== before) changed += 1;
+        }
+
+        console.info(`[긴르바 실험실] 미친 한출 통합 작가 패스 완료: ${candidates.length}구간 · ${changed}구간 재작성 · AI 요청 1회`);
+        return { checked: candidates.length, changed };
+    } catch (error) {
+        if (isAbort(error, options.signal)) throw error;
+        translations.clear();
+        for (const [id, translation] of originalTranslations) translations.set(id, translation);
+        console.warn('[긴르바 실험실] 미친 한출 통합 작가 패스 실패 — 안전하게 1차 번역을 유지합니다.', error);
+        return { checked: candidates.length, changed: 0, error };
+    }
+}
+
 async function runExperimentalQualityAudit({
     segmented,
     translations,
@@ -5066,7 +5139,10 @@ async function translateOutputText(source, options = {}) {
         );
     }
 
-    await runMadKoreanTargetedAudit({
+    const runIntegratedAuthorPass = typeof runMadKoreanIntegratedRewrite === 'function'
+        ? runMadKoreanIntegratedRewrite
+        : async () => ({ checked: 0, changed: 0 });
+    await runIntegratedAuthorPass({
         segmented,
         translations,
         speakerScopes,
