@@ -52,7 +52,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.111';
+const EXTENSION_VERSION = '0.5.112';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -3777,8 +3777,35 @@ function sourceMapAfterGlobalReplacements(sourceMap, previousTranslation, nextTr
 
 const KOREAN_NAME_PARTICLE_LIKE_ENDINGS = new Set(['은', '는', '이', '가', '을', '를', '의', '에', '도', '만', '와', '과', '로']);
 
+// Common nouns whose topic form can contain a canonical name verbatim.
+// Example: canonical name `담은` is not a person reference in `농담은`.
+const KOREAN_IDENTITY_WORD_COLLISIONS = new Set([
+    '농담', '부담', '상담', '괴담', '미담', '악담', '덕담', '잡담', '험담',
+]);
+
 function escapeRegularExpression(value) {
     return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function repairEmbeddedIdentityWordCollisions(value, speakerIdentity = {}) {
+    let result = String(value || '');
+    const names = canonicalKoreanIdentityNames(speakerIdentity)
+        .filter(name => /^[가-힣]{2,12}$/u.test(name))
+        .sort((left, right) => right.length - left.length);
+    const boundary = '(?=$|[\\s\\p{P}\\p{S}])';
+    const accidentalParticles = '(?:이|가|은|는|을|를)';
+
+    for (const name of names) {
+        for (const noun of KOREAN_IDENTITY_WORD_COLLISIONS) {
+            if (!`${noun}은`.endsWith(name)) continue;
+            const topicForm = `${noun}은`;
+            result = result.replace(
+                new RegExp(`${escapeRegularExpression(topicForm)}${accidentalParticles}${boundary}`, 'gu'),
+                topicForm,
+            );
+        }
+    }
+    return result;
 }
 
 /**
@@ -3830,7 +3857,8 @@ function repairStrictCanonicalIdentityNames(value, speakerIdentity = {}) {
 }
 
 function repairOutputIdentityNames(value, speakerIdentity = {}, sourceSegment = {}, nameTokens = []) {
-    const indivisible = repairIndivisibleIdentityNames(value, speakerIdentity);
+    const collisionRepaired = repairEmbeddedIdentityWordCollisions(value, speakerIdentity);
+    const indivisible = repairIndivisibleIdentityNames(collisionRepaired, speakerIdentity);
     const canonicalNames = canonicalKoreanIdentityNames(speakerIdentity);
     const particlesRepaired = repairCanonicalKoreanNameSuffixes(indivisible, canonicalNames);
     return repairCanonicalKoreanVocatives(particlesRepaired, sourceSegment, canonicalNames, nameTokens);

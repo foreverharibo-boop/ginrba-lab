@@ -643,6 +643,10 @@ export function repairCanonicalKoreanNameSuffixes(value, names = []) {
         const companion = info.hasBatchim ? '과' : '와';
         const direction = info.jong === 0 || info.jong === 8 ? '로' : '으로';
         const escaped = escapeRegExp(name);
+        // A Korean display name can also be the tail of an ordinary word.
+        // For example, the name `담은` occurs inside `농담은`, `부담은`, and
+        // `상담은`. Never interpret that embedded spelling as a person name.
+        const leftBoundary = '(?<![\\p{L}\\p{N}_])';
         const replacements = [
             ['이에게서', '에게서'],
             ['이한테서', '한테서'],
@@ -676,7 +680,7 @@ export function repairCanonicalKoreanNameSuffixes(value, names = []) {
         ];
         for (const [source, target] of replacements) {
             result = result.replace(
-                new RegExp(`${escaped}${escapeRegExp(source)}${boundary}`, 'gu'),
+                new RegExp(`${leftBoundary}${escaped}${escapeRegExp(source)}${boundary}`, 'gu'),
                 `${name}${target}`,
             );
         }

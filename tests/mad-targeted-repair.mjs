@@ -126,7 +126,7 @@ assert.throws(
     /중복 수정/,
 );
 
-const identityStart = index.indexOf('function canonicalKoreanIdentityNames(');
+const identityStart = index.indexOf('const KOREAN_NAME_PARTICLE_LIKE_ENDINGS');
 const identityEnd = index.indexOf('function hasKoreanFinalConsonant(', identityStart);
 const identityHelpers = Function(
     'repairCanonicalKoreanNameSuffixes',
@@ -156,6 +156,10 @@ assert.equal(
         { type: 'narration' },
     ),
     '담은은 물러났다. 담은의 후드를 잡고 담은을 밀었다. 담은이 놓친 파이프였다. 담은이 아니라 홍진이었다. 담은이 말을 듣는지 봤다.',
+);
+assert.equal(
+    identityHelpers.repairOutputIdentityNames('농담은이 먹히지 않았다. 부담은이 컸고 상담은은 끝났다.', fullIdentity, { type: 'narration' }),
+    '농담은 먹히지 않았다. 부담은 컸고 상담은 끝났다.',
 );
 
 // The audit is transactional: any downstream validation failure restores the

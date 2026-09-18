@@ -112,6 +112,7 @@ assert.equal(core.repairCanonicalKoreanVocatives('"담은이아!" 그가 외쳤�
 assert.equal(core.repairCanonicalKoreanVocatives('"담은이야!" 그가 외쳤다.', { type: 'dialogue_candidate', text: '"Dam-eun!" he shouted.' }, ['담은']), '"담은아!" 그가 외쳤다.');
 assert.equal(core.repairCanonicalKoreanVocatives('담은이 파이프를 휘둘렀다.', { type: 'narration', text: 'Dam-eun swung the pipe.' }, ['담은']), '담은이 파이프를 휘둘렀다.');
 assert.equal(core.repairCanonicalKoreanNameSuffixes('신이가 담은이를 불렀다.', ['신', '담은']), '신이 담은을 불렀다.');
+assert.equal(core.repairCanonicalKoreanNameSuffixes('농담은이 먹혔다. 부담은이 컸다. 상담은은 끝났다.', ['담은']), '농담은이 먹혔다. 부담은이 컸다. 상담은은 끝났다.');
 assert.equal(core.repairCanonicalKoreanVocatives('"신이아!" 그녀가 외쳤다.', { type: 'dialogue_candidate', text: '"Shin!" she shouted.' }, ['신']), '"신아!" 그녀가 외쳤다.');
 const indexSource = fs.readFileSync(new URL('../index.js',import.meta.url),'utf8');
 check(indexSource.includes('}, normalizedCharacterNameLocks(character));'), 'runtime passes character locks into output identity');
