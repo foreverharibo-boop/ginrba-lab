@@ -1,0 +1,76 @@
+import assert from 'node:assert/strict';
+import {
+    assembleTranslation,
+    bilingualDialogueRequested,
+    buildOutputPrompt,
+    ensureBilingualDialogueFormat,
+    segmentSource,
+} from '../core.js';
+
+const instruction = `[BILINGUAL DIALOGUE FORMAT]
+For dialogue only, always output both the original English dialogue and its Korean translation.
+The English dialogue must appear first, immediately followed by its Korean translation inside parentheses.
+Apply this format to ALL spoken dialogue without exception.
+Do NOT apply bilingual formatting to narration, descriptions, thoughts, or other non-dialogue text.`;
+
+const settings = {
+    globalPromptEnabled: false,
+    allDialoguePromptEnabled: true,
+    allDialoguePrompt: instruction,
+    dialoguePromptEnabled: false,
+    otherDialoguePromptEnabled: false,
+};
+
+assert.equal(bilingualDialogueRequested(settings), true);
+
+const segmented = segmentSource('Alex said, "I did not say that."', [{ source: 'Alex', target: '알렉스' }]);
+const narration = segmented.segments.find(segment => segment.type === 'narration');
+const dialogue = segmented.segments.find(segment => segment.type === 'dialogue_candidate');
+assert.ok(narration);
+assert.ok(dialogue);
+
+const formatted = ensureBilingualDialogueFormat(
+    dialogue,
+    '"난 그런 말 안 했어."',
+    settings,
+    { [dialogue.id]: 'other_dialogue' },
+    segmented.nameTokens,
+    segmented.tokens,
+);
+assert.equal(formatted, '"I did not say that. (난 그런 말 안 했어.)"');
+assert.equal(ensureBilingualDialogueFormat(narration, '알렉스가 말했다.', settings), '알렉스가 말했다.');
+assert.equal(ensureBilingualDialogueFormat(dialogue, formatted, settings), formatted);
+
+const named = segmentSource('"Alex, open it."', [{ source: 'Alex', target: '알렉스' }]);
+const namedDialogue = named.segments.find(segment => segment.type === 'dialogue_candidate');
+const namedKorean = `"${named.nameTokens[0].token}, 그거 열어."`;
+const namedFormatted = ensureBilingualDialogueFormat(
+    namedDialogue,
+    namedKorean,
+    settings,
+    null,
+    named.nameTokens,
+    named.tokens,
+);
+assert.equal(
+    assembleTranslation(named, new Map([[namedDialogue.id, namedFormatted]])),
+    '"Alex, open it. (알렉스, 그거 열어.)"',
+);
+
+const speakerOnly = {
+    ...settings,
+    allDialoguePromptEnabled: false,
+    dialoguePromptEnabled: true,
+    dialoguePrompt: instruction,
+};
+assert.equal(bilingualDialogueRequested(speakerOnly), false);
+assert.equal(
+    ensureBilingualDialogueFormat(dialogue, '"난 그런 말 안 했어."', speakerOnly),
+    '"난 그런 말 안 했어."',
+);
+
+const prompt = buildOutputPrompt(segmented, settings, '', {}, null, { [dialogue.id]: 'other_dialogue' });
+assert.match(prompt, /BILINGUAL DIALOGUE IS REQUIRED/);
+assert.match(prompt, /A Korean-only dialogue result is invalid/);
+
+console.log('PASS: required dialogue bilingual format is detected and enforced locally without affecting narration or speaker-only prompts.');
