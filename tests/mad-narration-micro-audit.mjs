@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import { buildMadNarrationMicroAuditPrompt } from '../core.js';
 
 const index = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
-const start = index.indexOf('function madNarrationLocalAuditCandidates(');
+const start = index.indexOf('function applyMadNarrationDeterministicRepairs(');
 const end = index.indexOf('async function runMadKoreanTargetedAudit(', start);
 assert.ok(start >= 0 && end > start);
 
@@ -28,7 +28,7 @@ const env = {
 };
 const helpers = Function(
     ...Object.keys(env),
-    `${index.slice(start, end)}\nreturn {madNarrationLocalAuditCandidates, runMadNarrationMicroAudit};`,
+    `${index.slice(start, end)}\nreturn {applyMadNarrationDeterministicRepairs, madNarrationLocalAuditCandidates, runMadNarrationMicroAudit};`,
 )(...Object.values(env));
 
 const segments = [
@@ -59,10 +59,25 @@ const result = await helpers.runMadNarrationMicroAudit({
     segmented: { segments }, translations, speakerScopes: {}, speakerIdentity: identity, options: {},
 });
 assert.equal(result.requested, 1);
-assert.equal(result.changed, 1);
+assert.equal(result.changed, 3);
 assert.equal(requests, 1);
-assert.equal(lastCandidates.length, 3);
-assert.equal(translations.get('seg_0000'), '피로가 뼛속까지 내려앉았다.');
+assert.equal(lastCandidates.length, 1);
+assert.equal(translations.get('seg_0000'), '무겁고 지독한 피로가 남았다.');
+
+const deterministicOnly = new Map([
+    ['seg_0000', '깊고 갈리는 피로가 남았다.'],
+]);
+const deterministicResult = await helpers.runMadNarrationMicroAudit({
+    segmented: { segments: [segments[0]] },
+    translations: deterministicOnly,
+    speakerScopes: {},
+    speakerIdentity: identity,
+    options: {},
+});
+assert.equal(deterministicResult.requested, 0);
+assert.equal(deterministicResult.changed, 1);
+assert.equal(deterministicOnly.get('seg_0000'), '무겁고 지독한 피로가 남았다.');
+assert.equal(requests, 1);
 
 const cleanTranslations = new Map([
     ['seg_0003', '밖에서는 야영지가 여전히 움직이고 있었다.'],

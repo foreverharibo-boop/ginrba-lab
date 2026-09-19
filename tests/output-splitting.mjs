@@ -31,7 +31,7 @@ const requestSegments=async(prompt,segments,options)=>{
 const env={settings,outputSplitCount,runOutputBatches,requestSegments,
  buildOutputPrompt:core.buildOutputPrompt,buildScopedOutputPrompt:core.buildScopedOutputPrompt,
  madKoreanExclusiveMode:()=>settings.developerMadKoreanOutputEnabled===true,
- isAbort:(error,signal)=>signal?.aborted||error.name==='AbortError',SCOPED_PARALLEL_REQUEST_LIMIT:2,console};
+ isAbort:(error,signal)=>signal?.aborted||error.name==='AbortError',scopedParallelRequestLimit:()=>2,console};
 const routingCode=between('function outputScopeForSegment(', 'function speakerAttributionCacheKey(')
  +between('async function runWithConcurrency(', 'function setBoundedCache(')
  +between('async function requestScopedGroupTranslations(', 'function normalizeTaggedOutputTranslations(');

@@ -44,6 +44,16 @@ assert.equal(r.durations.primary, 90); assert.equal(r.durations.queue, 10);
 assert.equal(r.rows.reduce((n, row) => n + row.responseMs, 0), 130);
 assert.equal(Object.values(r.durations).reduce((x, y) => x + y), 100);
 
+// Mad Korean narration chunks are primary translation work, not auxiliary QA.
+time = 0;
+const chunked = begin();
+const chunk = enqueue(chunked, 'output-retranslation:narration:chunk-1');
+recorder.sent(chunked, chunk);
+time = 25; recorder.received(chunked, chunk); recorder.finish(chunked, '완료');
+r = recorder.latest();
+assert.equal(r.durations.primary, 25);
+assert.equal(r.counts.aux, 0);
+
 // Turning OFF invalidates in-flight traces; turning ON cannot resurrect them.
 const invalidated = begin(); const pending = enqueue(invalidated);
 recorder.sent(invalidated, pending);

@@ -53,7 +53,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.117';
+const EXTENSION_VERSION = '0.5.118';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -608,7 +608,8 @@ const pendingFallbackAssistantIds = new Set();
 
 const pendingInputControllers = new Set();
 const transientLockedMessages = new Set();
-const SCOPED_PARALLEL_REQUEST_LIMIT = 3;
+const DEFAULT_SCOPED_PARALLEL_REQUEST_LIMIT = 3;
+const MAD_HONGJIN_SCOPED_PARALLEL_REQUEST_LIMIT = 4;
 const scopedParallelRequestQueue = [];
 let scopedParallelRequestActive = 0;
 const enqueueSplitOutputRequest = createSplitRequestQueue(3);
@@ -2658,9 +2659,15 @@ function enqueueRequest(task) {
     return run;
 }
 
+function scopedParallelRequestLimit() {
+    return madKoreanExclusiveMode() && settings.developerHongjinFlavorEnabled === true
+        ? MAD_HONGJIN_SCOPED_PARALLEL_REQUEST_LIMIT
+        : DEFAULT_SCOPED_PARALLEL_REQUEST_LIMIT;
+}
+
 function drainScopedParallelRequestQueue() {
     while (
-        scopedParallelRequestActive < SCOPED_PARALLEL_REQUEST_LIMIT
+        scopedParallelRequestActive < scopedParallelRequestLimit()
         && scopedParallelRequestQueue.length
     ) {
         const item = scopedParallelRequestQueue.shift();
@@ -4120,7 +4127,7 @@ async function requestScopedGroupTranslations({
 
             const rows = await runWithConcurrency(
                 missing,
-                SCOPED_PARALLEL_REQUEST_LIMIT,
+                scopedParallelRequestLimit(),
                 async segment => {
                     const single = await requestSegments(buildPrompt([segment]), [segment], {
                         ...options,
@@ -4139,7 +4146,7 @@ async function requestScopedGroupTranslations({
     if (madFlashChunks.length === 1) return requestChunk(segments);
     const chunkResults = await runWithConcurrency(
         madFlashChunks,
-        SCOPED_PARALLEL_REQUEST_LIMIT,
+        scopedParallelRequestLimit(),
         requestChunk,
     );
     return new Map(chunkResults.flatMap(result => [...result]));
@@ -4263,7 +4270,7 @@ async function requestScopedOutputTranslations(segmented, speakerScopes, options
     const scopeJobs = [...groups.entries()].filter(([, segments]) => segments.length);
     const scopeResults = await runWithConcurrency(
         scopeJobs,
-        SCOPED_PARALLEL_REQUEST_LIMIT,
+        scopedParallelRequestLimit(),
         async ([scope, segments]) => {
             const result = await requestScopedGroupTranslations({
                 segmented,
@@ -4307,7 +4314,7 @@ async function repairSegmentsByOutputScope({
 
     const results = await runWithConcurrency(
         groups,
-        SCOPED_PARALLEL_REQUEST_LIMIT,
+        scopedParallelRequestLimit(),
         async ([scope, segments]) => {
             const prompt = buildPrompt(
                 segments,
@@ -4573,7 +4580,7 @@ async function runHongjinVoiceRewrite({
         const chunks = splitMadAuditSegments(candidates);
         const rewrittenGroups = await runWithConcurrency(
             chunks,
-            SCOPED_PARALLEL_REQUEST_LIMIT,
+            scopedParallelRequestLimit(),
             async chunk => {
                 const prompt = buildHongjinVoiceRewritePrompt({
                     segments: chunk,
@@ -4712,6 +4719,41 @@ async function runHongjinVoiceRewrite({
     }
 }
 
+function applyMadNarrationDeterministicRepairs(segmented, translations, speakerScopes) {
+    let changed = 0;
+    for (const segment of segmented?.segments || []) {
+        if (outputScopeForSegment(segment, speakerScopes) !== 'narration') continue;
+        const source = String(segment.text || '');
+        const before = String(translations.get(segment.id) || '');
+        if (!before.trim()) continue;
+
+        let after = before
+            .replace(/깊(?:고|은)\s*,?\s*갈리(?:는|던)\s*피로/gu, '무겁고 지독한 피로')
+            .replace(/눈이\s+어둠에\s+적응하기를\s+기다렸(?:다|었다)/gu, '어둠에 눈이 익기를 기다렸다')
+            .replace(/(?:세상|세계)(은|는|이|가)\s+부드럽고\s+잿빛으로/gu, '세상이 흐릿한 잿빛으로')
+            .replace(/접이식\s*(?=[,.!?…。？！]|$)/gu, '접이식 의자');
+
+        if (/\b(?:car|vehicle)\s+(?:wreck|crash)\b/iu.test(source)) {
+            after = after.replace(/폐차\s*사고/gu, '교통사고');
+        }
+        if (/\b(?:crying|cry|wail(?:ing)?|sob(?:bing)?)\b/iu.test(source)) {
+            after = after.replace(/가늘고\s+앙상한\s+울음/gu, '가늘고 여린 울음');
+        }
+        if (/\bcots?\b/iu.test(source)) {
+            after = after.replace(/들것\s*침대/gu, '간이침대');
+        }
+        if (/\bknuckles?\b/iu.test(source)) {
+            after = after.replace(/갈라진\s+손등/gu, '갈라진 손마디');
+        }
+
+        if (after !== before) {
+            translations.set(segment.id, after);
+            changed += 1;
+        }
+    }
+    return changed;
+}
+
 function madNarrationLocalAuditCandidates(segmented, translations, speakerScopes, speakerIdentity = {}) {
     const candidates = [];
     const identityNames = canonicalKoreanIdentityNames(speakerIdentity)
@@ -4772,6 +4814,11 @@ async function runMadNarrationMicroAudit({
     options,
 }) {
     if (!madKoreanExclusiveMode()) return { checked: 0, changed: 0, requested: 0 };
+    const localChanged = applyMadNarrationDeterministicRepairs(
+        segmented,
+        translations,
+        speakerScopes,
+    );
     const candidates = madNarrationLocalAuditCandidates(
         segmented,
         translations,
@@ -4779,7 +4826,7 @@ async function runMadNarrationMicroAudit({
         speakerIdentity,
     );
     if (!candidates.length) {
-        return { checked: 0, changed: 0, requested: 0 };
+        return { checked: 0, changed: localChanged, requested: 0 };
     }
     try {
         const prompt = buildMadNarrationMicroAuditPrompt({
@@ -4792,7 +4839,7 @@ async function runMadNarrationMicroAudit({
             stage: 'mad-narration-micro-audit',
             maxParseRetries: 0,
         });
-        let changed = 0;
+        let changed = localChanged;
         for (const segment of candidates) {
             if (!reviewed.has(segment.id)) continue;
             const before = String(translations.get(segment.id) || '');
@@ -4806,12 +4853,12 @@ async function runMadNarrationMicroAudit({
             );
             changed += 1;
         }
-        console.info(`[긴르바 실험실] 서술 고속 검수 완료: 의심 ${candidates.length}구간 · 수정 ${changed}구간 · AI 요청 1회`);
+        console.info(`[긴르바 실험실] 서술 고속 검수 완료: 로컬 ${localChanged}구간 · AI 의심 ${candidates.length}구간 · 총 수정 ${changed}구간 · AI 요청 1회`);
         return { checked: candidates.length, changed, requested: 1 };
     } catch (error) {
         if (isAbort(error, options.signal)) throw error;
         console.warn('[긴르바 실험실] 서술 고속 검수 실패 — 본 번역을 유지합니다.', error);
-        return { checked: candidates.length, changed: 0, requested: 1, error };
+        return { checked: candidates.length, changed: localChanged, requested: 1, error };
     }
 }
 
