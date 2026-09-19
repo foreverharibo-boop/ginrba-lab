@@ -22,7 +22,7 @@ const namespaceSources = sources.replace("const PEER_STATE_KEY = 'verba_current_
 
 assert.equal(manifest.name, 'ginrba-lab');
 assert.equal(manifest.display_name, '긴르바 실험실');
-assert.equal(manifest.version, '0.5.131');
+assert.equal(manifest.version, '0.5.132');
 assert.ok(index.includes("const EXTENSION_KEY = 'verba-deep';"));
 assert.ok(index.includes("const STATE_KEY = 'verba_deep_current_translation';"));
 assert.ok(index.includes("const SOURCE_VIEW_KEY = 'verba_deep_source_view';"));

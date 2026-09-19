@@ -195,6 +195,39 @@ assert.equal(
     `"Dana... [${danaOnly.nameTokens[0].token}…]"`,
 );
 
+// The model may preserve the NAME marker only in its English half and render
+// the Korean half as a visible locked name. Rebuilding replaces the English
+// half, so the visible Korean name must be rebound locally before assembly.
+const squareVisibleKoreanName = `"${danaOnly.nameTokens[0].token}… [다나…]"`;
+const squareVisibleKoreanFixed = ensureBilingualDialogueFormat(
+    danaDialogue,
+    squareVisibleKoreanName,
+    squareSettings,
+    null,
+    danaOnly.nameTokens,
+    danaOnly.tokens,
+);
+assert.equal(squareVisibleKoreanFixed, `"Dana... [${danaOnly.nameTokens[0].token}…]"`);
+assert.equal(
+    assembleTranslation(danaOnly, new Map([[danaDialogue.id, squareVisibleKoreanFixed]])),
+    '*그는 망설였다.*\n\n"Dana... [다나…]"',
+);
+
+const squareOmittedKoreanName = '"Dana... [불렀다.]"';
+const squareOmittedKoreanFixed = ensureBilingualDialogueFormat(
+    danaDialogue,
+    squareOmittedKoreanName,
+    squareSettings,
+    null,
+    danaOnly.nameTokens,
+    danaOnly.tokens,
+);
+assert.match(squareOmittedKoreanFixed, /@@VERBA_DEEP_NAME_0000@@/u);
+assert.doesNotThrow(() => assembleTranslation(
+    danaOnly,
+    new Map([[danaDialogue.id, squareOmittedKoreanFixed]]),
+));
+
 const squareByWording = {
     ...settings,
     allDialoguePrompt: `${instruction.replace(/inside parentheses/iu, 'inside square brackets')}\nUse square brackets for the Korean half.`,

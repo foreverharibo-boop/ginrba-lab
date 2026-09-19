@@ -495,6 +495,55 @@ function extractKoreanDialogueHalf(segment, translation, nameTokens = [], protec
     return stripLooseDialogueQuotes(stripSingleParentheticalEnvelope(body));
 }
 
+function bindBilingualKoreanNameTokens(segment, korean, nameTokens = []) {
+    let next = String(korean || '');
+    const expected = protectedTokenCounts(segment?.text || '');
+
+    for (const entry of nameTokens || []) {
+        const token = String(entry?.token || '');
+        const wanted = expected.get(token) || 0;
+        if (!token || !wanted) continue;
+
+        let got = protectedTokenOccurrences(next, token);
+        if (got > wanted) {
+            next = replaceExcessNameTokens(next, token, wanted, entry?.value);
+            got = wanted;
+        }
+
+        let missing = Math.max(0, wanted - got);
+        const visibleCandidates = [entry?.value, entry?.source]
+            .map(value => String(value || '').trim())
+            .filter(Boolean);
+        for (const visible of visibleCandidates) {
+            if (!missing) break;
+            const ranges = literalRangesOutsideProtectedTokens(next, visible, {
+                koreanName: /^[가-힣]{1,20}$/u.test(visible),
+            });
+            if (!ranges.length) continue;
+            const sourceIndex = Math.max(0, String(segment?.text || '').indexOf(token));
+            const expectedIndex = String(segment?.text || '').length
+                ? next.length * sourceIndex / String(segment.text).length
+                : 0;
+            const chosen = [...ranges]
+                .sort((left, right) => Math.abs(left.start - expectedIndex) - Math.abs(right.start - expectedIndex))
+                .slice(0, missing)
+                .sort((left, right) => left.start - right.start);
+            next = replaceLiteralRanges(next, chosen, Array(chosen.length).fill(token));
+            missing -= chosen.length;
+        }
+
+        // The earlier protection audit can regard a marker in the model's
+        // English half as valid. After deterministic bilingual rebuilding that
+        // half is replaced by the exact source spelling, so any still-missing
+        // marker belongs in the Korean half—not back in the English source.
+        while (missing > 0) {
+            next = insertMissingProtectedTokenBySourcePosition(segment?.text || '', next, token);
+            missing -= 1;
+        }
+    }
+    return next;
+}
+
 function dialogueEnvelope(value) {
     const raw = String(value || '');
     const leading = raw.match(/^\s*/u)?.[0] || '';
@@ -536,7 +585,11 @@ export function ensureBilingualDialogueFormat(
     const result = String(translation || '');
     if (segment?.type !== 'dialogue_candidate' || !bilingualDialogueRequested(settings)) return result;
     const translatedEnvelope = dialogueEnvelope(result);
-    const korean = extractKoreanDialogueHalf(segment, result, nameTokens, protectedTokens);
+    const korean = bindBilingualKoreanNameTokens(
+        segment,
+        extractKoreanDialogueHalf(segment, result, nameTokens, protectedTokens),
+        nameTokens,
+    );
     const koreanNameTokenPresent = (nameTokens || []).some(entry => (
         korean.includes(String(entry?.token || ''))
         && /[가-힣]/u.test(String(entry?.value || ''))
