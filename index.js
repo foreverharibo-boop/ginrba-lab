@@ -48,6 +48,7 @@ import {
     repairCanonicalKoreanVocatives,
     repairDuplicateCanonicalIdentityNames,
     repairLeadingLockedNameSubjectParticle,
+    repairProtectedTokenIntegrityLocally,
     restoreProtected,
     resolveOutputSpeakerIdentity,
     segmentSource,
@@ -55,7 +56,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.120';
+const EXTENSION_VERSION = '0.5.121';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4344,6 +4345,13 @@ async function repairProtectedTokenIntegrity(segmented, translations, options = 
     if (!invalid.length) return;
     const started = performance.now();
     const diagnostic = recordProtectedRecovery(invalid, segmented, translations, options);
+    const localRepair = repairProtectedTokenIntegrityLocally(segmented, translations);
+    invalid = localRepair.remaining;
+    if (!invalid.length) {
+        finishProtectedRecovery(diagnostic, '내부 복구 완료', started, 0, invalid, segmented, translations);
+        console.info(`[긴르바 실험실] 보호 이름 표식 내부 복구 완료: ${localRepair.restoredNameTokens + localRepair.normalizedExcessNameTokens}개`);
+        return;
+    }
     let attempts = 0;
     const maxAttempts = settings.developerMadKoreanOutputEnabled === true ? 1 : 5;
     try {

@@ -1295,6 +1295,141 @@ export function findProtectedTokenIntegrityProblems(segments, translations) {
     return invalid;
 }
 
+function protectedTokenOccurrences(value, token) {
+    return String(value || '').split(String(token || '')).length - 1;
+}
+
+function replaceExcessNameTokens(value, token, keepCount, replacement) {
+    let seen = 0;
+    return String(value || '').replaceAll(String(token || ''), match => {
+        seen += 1;
+        return seen <= keepCount ? match : String(replacement || '');
+    });
+}
+
+function literalRangesOutsideProtectedTokens(value, literal, { koreanName = false } = {}) {
+    const text = String(value || '');
+    const needle = String(literal || '');
+    if (!needle) return [];
+    const protectedRanges = [...text.matchAll(new RegExp(PROTECTED_TOKEN_PATTERN.source, 'g'))]
+        .map(match => ({ start: match.index, end: match.index + match[0].length }));
+    const result = [];
+    let cursor = 0;
+    while (cursor <= text.length - needle.length) {
+        const start = text.indexOf(needle, cursor);
+        if (start < 0) break;
+        const end = start + needle.length;
+        cursor = Math.max(end, start + 1);
+        if (protectedRanges.some(range => start < range.end && end > range.start)) continue;
+
+        if (koreanName) {
+            const before = start > 0 ? text[start - 1] : '';
+            const tail = text.slice(end);
+            const beforeBoundary = !before || !/[가-힣]/u.test(before);
+            const afterBoundary = !tail
+                || !/^[가-힣]/u.test(tail)
+                || /^(?:에게서|에게|한테|께서|께|으로|이랑|랑|은|는|이|가|을|를|의|도|만|과|와|로|아|야)(?=$|[\s\p{P}\p{S}])/u.test(tail);
+            if (!beforeBoundary || !afterBoundary) continue;
+        } else {
+            const before = start > 0 ? text[start - 1] : '';
+            const after = text[end] || '';
+            if (before && /[\p{L}\p{N}_]/u.test(before)) continue;
+            if (after && /[\p{L}\p{N}_]/u.test(after)) continue;
+        }
+        result.push({ start, end });
+    }
+    return result;
+}
+
+function replaceLiteralRanges(value, ranges, replacements) {
+    const text = String(value || '');
+    let result = '';
+    let cursor = 0;
+    for (let index = 0; index < ranges.length; index += 1) {
+        const range = ranges[index];
+        result += text.slice(cursor, range.start);
+        result += String(replacements[index] || '');
+        cursor = range.end;
+    }
+    return result + text.slice(cursor);
+}
+
+/**
+ * Restores NAME placeholders locally when the model discarded the opaque
+ * marker but already wrote the exact locked Korean name (or exact source
+ * spelling) in its place. This is a deterministic representation repair: it
+ * never invents, moves, translates, or chooses a name. Ambiguous cases and
+ * non-name structure/code tokens remain for the existing AI fallback.
+ */
+export function repairProtectedTokenIntegrityLocally(segmented, translations) {
+    const map = translations instanceof Map ? translations : new Map(Object.entries(translations || {}));
+    const nameEntries = new Map((segmented?.nameTokens || []).map(entry => [String(entry?.token || ''), entry]));
+    const changedSegmentIds = [];
+    let restoredNameTokens = 0;
+    let normalizedExcessNameTokens = 0;
+
+    for (const segment of segmented?.segments || []) {
+        const original = String(map.get(segment.id) || '');
+        if (!original) continue;
+        const expected = protectedTokenCounts(segment.text);
+        let next = original;
+
+        // If a NAME marker was duplicated or moved into this segment, keep the
+        // expected copies and render only the excess copies as their locked
+        // Korean value. No visible name content is discarded.
+        for (const [token, entry] of nameEntries) {
+            const wanted = expected.get(token) || 0;
+            const got = protectedTokenOccurrences(next, token);
+            if (got <= wanted) continue;
+            next = replaceExcessNameTokens(next, token, wanted, entry?.value);
+            normalizedExcessNameTokens += got - wanted;
+        }
+
+        const missingByValue = new Map();
+        const sourceTokenOrder = String(segment.text || '').match(PROTECTED_TOKEN_PATTERN) || [];
+        for (const token of sourceTokenOrder) {
+            const entry = nameEntries.get(token);
+            if (!entry) continue;
+            const wanted = expected.get(token) || 0;
+            const got = protectedTokenOccurrences(next, token);
+            const missing = Math.max(0, wanted - got);
+            if (!missing) continue;
+            const value = String(entry.value || '').trim();
+            if (!value) continue;
+            if (!missingByValue.has(value)) missingByValue.set(value, []);
+            for (let count = 0; count < missing; count += 1) missingByValue.get(value).push(token);
+        }
+
+        for (const [value, tokens] of missingByValue) {
+            let ranges = literalRangesOutsideProtectedTokens(next, value, { koreanName: /^[가-힣]{1,20}$/u.test(value) });
+            if (ranges.length !== tokens.length) {
+                const sources = [...new Set(tokens.map(token => String(nameEntries.get(token)?.source || '').trim()).filter(Boolean))];
+                if (sources.length === 1) {
+                    ranges = literalRangesOutsideProtectedTokens(next, sources[0], { koreanName: false });
+                }
+            }
+            // Exact cardinality is the safety gate. If more than one possible
+            // visible occurrence exists, leave the row untouched for the
+            // source-aware fallback instead of guessing which name to bind.
+            if (ranges.length !== tokens.length) continue;
+            next = replaceLiteralRanges(next, ranges, tokens);
+            restoredNameTokens += tokens.length;
+        }
+
+        if (next !== original) {
+            map.set(segment.id, next);
+            changedSegmentIds.push(segment.id);
+        }
+    }
+
+    return {
+        changedSegmentIds,
+        restoredNameTokens,
+        normalizedExcessNameTokens,
+        remaining: findProtectedTokenIntegrityProblems(segmented?.segments || [], map),
+    };
+}
+
 function instructionBlock(title, value, fallback = '(없음)') {
     const text = String(value || '').trim();
     return `${title}\n${text || fallback}`;
