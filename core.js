@@ -5318,6 +5318,44 @@ ROWS
 ${JSON.stringify(rows)}`;
 }
 
+export function buildMadNarrationMicroAuditPrompt({
+    segments,
+    currentTranslations,
+    speakerIdentity = {},
+} = {}) {
+    const translations = currentTranslations instanceof Map
+        ? currentTranslations
+        : new Map(Object.entries(currentTranslations || {}));
+    const rows = (segments || []).map(segment => ({
+        id: String(segment.id || ''),
+        source: String(segment.text || ''),
+        current_translation: String(translations.get(segment.id) || ''),
+        local_flags: Array.isArray(segment.localAuditReasons) ? segment.localAuditReasons : [],
+    }));
+    return `MAD KOREAN — FAST NARRATION MICRO-AUDIT
+This is one short, selective Korean prose check. Every supplied row was flagged locally; do not inspect or rewrite any row outside this list.
+
+TASK
+- Compare source and current_translation only for the listed local_flags.
+- Repair only clear Korean damage: missing or doubled particles, dropped head nouns/syllables, impossible subject–predicate or modifier–noun combinations, unmistakable calques, wrong body part/object, incomplete comparison, or a source fact lost by malformed Korean.
+- A name at a sentence boundary may legitimately omit a particle in rare literary syntax. Repair it only when the resulting sentence is actually ungrammatical or ambiguous.
+- Prefer the smallest complete correction, but return the entire corrected row.
+- Preserve facts, actor, target, body part, viewpoint, intensity, chronology, names, numbers, quotation status and paragraph role. Add no image, action, motive, emotion or character voice.
+- This is narration only. Never add dialogue, profanity, slang, teasing or Kim Hong-jin voice.
+- Preserve protected tokens, tags, macros, code, URLs and punctuation exactly.
+- If a flagged row is already valid natural Korean, return no repair for it.
+
+IDENTITY REFERENCE
+TARGET=${JSON.stringify(String(speakerIdentity.characterName || '').trim())}; USER=${JSON.stringify(String(speakerIdentity.userName || '').trim())}
+
+Return strict JSON only. Include changed rows only:
+{"repairs":[{"id":"seg_0000","translation":"교정된 전체 서술 구간"}]}
+If no row needs correction, return {"repairs":[]}.
+
+FLAGGED NARRATION ROWS
+${JSON.stringify(rows)}`;
+}
+
 export function buildMadKoreanIntegratedRewritePrompt({
     segments,
     currentTranslations,

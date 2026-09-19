@@ -108,6 +108,7 @@ const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  findBannedWords:()=>[],findUntranslatedSegments:()=>[],repairIndivisibleIdentityNames:t=>t,repairStrictCanonicalIdentityNames:t=>t,repairOutputIdentityNames:t=>t,repairKoreanParticleAlternatives:t=>t,repairDialogueQuotationEnvelope:t=>t,
  runHongjinVoiceRewrite:async({segmented:s})=>{assert.equal(s.segments.length,segmented.segments.length);},
  runMadKoreanIntegratedRewrite:async({segmented:s})=>{integratedRewritten++;assert.equal(s.segments.length,segmented.segments.length);},
+ runMadNarrationMicroAudit:async({segmented:s})=>{assert.equal(s.segments.length,segmented.segments.length);},
  runExperimentalQualityAudit:async({segmented:s})=>{audited++;assert.equal(s.segments.length,segmented.segments.length);},
  buildSourceMap:(_s,_t,result)=>[{start:0,end:result.length}],console};
 const full=Function(...Object.keys(fullEnv),between('function normalizeTaggedOutputTranslations(', 'async function repairSegmentsByOutputScope(')+between('async function translateOutputText(', 'function inputIdentitySpellingContext(')+'\nreturn translateOutputText;')(...Object.values(fullEnv));

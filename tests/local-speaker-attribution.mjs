@@ -138,5 +138,18 @@ const scopeAt = indexValue => resolveSelectionScope({
 assert.equal(scopeAt(0), 'other_dialogue', 'Dam-eun selection must never receive Hong-jin voice');
 assert.equal(scopeAt(1), 'other_dialogue', 'medic selection must never receive Hong-jin voice');
 assert.equal(scopeAt(2), 'target_dialogue', 'Hong-jin selection must retain Hong-jin voice');
+const staleMedicMap = selectionMap.map(row => ({ ...row }));
+staleMedicMap[1] = {
+    ...staleMedicMap[1],
+    id: selectionMap[2].id,
+    source: selectionMap[1].source,
+};
+assert.equal(resolveSelectionScope({
+    source: selectionSource,
+    translation: renderedTranslation,
+    start: staleMedicMap[1].start,
+    end: staleMedicMap[1].end,
+    sourceMap: staleMedicMap,
+}, identity), 'other_dialogue', 'stale id collision must fall back to source text instead of leaking target voice');
 
 console.log(`PASS: local attribution marks ${dialogueIds.length} Hong-jin lines and selection retranslation resolves Dam-eun/medic/Hong-jin scopes without an API call.`);

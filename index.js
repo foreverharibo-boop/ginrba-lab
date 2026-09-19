@@ -15,6 +15,7 @@ import {
     buildInputPrompt,
     buildIdentityNameFallbackPrompt,
     buildMadFlashV2AuditPrompt,
+    buildMadNarrationMicroAuditPrompt,
     buildMadKoreanIntegratedRewritePrompt,
     buildMultiSelectionPrompt,
     buildNameHistoryFormsPrompt,
@@ -52,7 +53,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.116';
+const EXTENSION_VERSION = '0.5.117';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -3255,7 +3256,9 @@ function parseSparseMadRepairResponse(raw, expectedSegments = []) {
 }
 
 async function requestSparseMadRepairs(prompt, expectedSegments, options = {}) {
-    const maxParseRetries = 2;
+    const maxParseRetries = Number.isInteger(options.maxParseRetries)
+        ? Math.max(0, Math.min(2, options.maxParseRetries))
+        : 2;
     let lastError;
     for (let attempt = 0; attempt <= maxParseRetries; attempt += 1) {
         const reminder = attempt ? `
@@ -4709,6 +4712,109 @@ async function runHongjinVoiceRewrite({
     }
 }
 
+function madNarrationLocalAuditCandidates(segmented, translations, speakerScopes, speakerIdentity = {}) {
+    const candidates = [];
+    const identityNames = canonicalKoreanIdentityNames(speakerIdentity)
+        .filter(name => /^[가-힣]{2,12}$/u.test(name))
+        .sort((left, right) => right.length - left.length);
+    const checks = [
+        [/깊(?:고|은)\s*,?\s*갈리(?:는|던|다)\s*피로/u, '부자연스러운 피로 수식 결합'],
+        [/눈이\s+어둠에\s+적응/u, '시각 적응의 번역투 결합'],
+        [/(?:말|목소리)[^.!?\n]{0,36}공기[^.!?\n]{0,24}(?:매달|떠돌)/u, '말과 공기를 직역한 결합'],
+        [/(?:세상|세계)(?:은|는|이|가)\s+부드럽고/u, '감각 형용사의 부자연스러운 대상 결합'],
+        [/접이식\s*(?=$|[,.!?…。？！])/u, '접이식 뒤 필수 중심 명사 누락'],
+        [/(?:처럼|듯|듯이)\s*[.!?…。？！]["”’)]*\s*$/u, '비교 표현 뒤 본절 누락 가능성'],
+    ];
+
+    for (const segment of segmented?.segments || []) {
+        if (outputScopeForSegment(segment, speakerScopes) !== 'narration') continue;
+        const source = String(segment.text || '');
+        const translation = String(translations.get(segment.id) || '');
+        if (!translation.trim()) continue;
+        const reasons = [];
+        for (const [pattern, reason] of checks) {
+            if (pattern.test(translation)) reasons.push(reason);
+        }
+        if (/\bknuckles?\b/iu.test(source) && !/(?:손마디|손가락\s*관절|주먹\s*관절)/u.test(translation)) {
+            reasons.push('원문의 knuckles 신체 부위 대응 확인');
+        }
+        if (/\bcots?\b/iu.test(source) && /들것\s*침대/u.test(translation)) {
+            reasons.push('cot을 들것 침대로 옮긴 어휘 의미 확인');
+        }
+        if (/\bboots?\b[^.!?]{0,80}\b(?:sound|sounds|soft)\b/iu.test(source)
+            && !/(?:소리|발소리|울림|울리)/u.test(translation)) {
+            reasons.push('군화가 아니라 군화 소리가 주체인지 확인');
+        }
+        for (const name of identityNames) {
+            const bareSentenceName = new RegExp(
+                `(?:^|[.!?…。？！]\\s+|\\n+)${escapeRegularExpression(name)}\\s+[가-힣]`,
+                'u',
+            );
+            if (bareSentenceName.test(translation)) {
+                reasons.push(`문장 경계의 인명 ${name} 뒤 조사 누락 가능성`);
+                break;
+            }
+        }
+        if (reasons.length) candidates.push({
+            ...segment,
+            outputScope: 'narration',
+            localAuditReasons: [...new Set(reasons)],
+        });
+    }
+    return candidates;
+}
+
+async function runMadNarrationMicroAudit({
+    segmented,
+    translations,
+    speakerScopes,
+    speakerIdentity,
+    options,
+}) {
+    if (!madKoreanExclusiveMode()) return { checked: 0, changed: 0, requested: 0 };
+    const candidates = madNarrationLocalAuditCandidates(
+        segmented,
+        translations,
+        speakerScopes,
+        speakerIdentity,
+    );
+    if (!candidates.length) {
+        return { checked: 0, changed: 0, requested: 0 };
+    }
+    try {
+        const prompt = buildMadNarrationMicroAuditPrompt({
+            segments: candidates,
+            currentTranslations: translations,
+            speakerIdentity,
+        });
+        const reviewed = await requestSparseMadRepairs(prompt, candidates, {
+            ...options,
+            stage: 'mad-narration-micro-audit',
+            maxParseRetries: 0,
+        });
+        let changed = 0;
+        for (const segment of candidates) {
+            if (!reviewed.has(segment.id)) continue;
+            const before = String(translations.get(segment.id) || '');
+            const after = String(reviewed.get(segment.id) || '').trim();
+            if (!after || after === before) continue;
+            translations.set(
+                segment.id,
+                repairKoreanParticleAlternatives(
+                    repairStrictCanonicalIdentityNames(after, speakerIdentity),
+                ),
+            );
+            changed += 1;
+        }
+        console.info(`[긴르바 실험실] 서술 고속 검수 완료: 의심 ${candidates.length}구간 · 수정 ${changed}구간 · AI 요청 1회`);
+        return { checked: candidates.length, changed, requested: 1 };
+    } catch (error) {
+        if (isAbort(error, options.signal)) throw error;
+        console.warn('[긴르바 실험실] 서술 고속 검수 실패 — 본 번역을 유지합니다.', error);
+        return { checked: candidates.length, changed: 0, requested: 1, error };
+    }
+}
+
 async function runMadKoreanTargetedAudit({
     segmented,
     translations,
@@ -5198,6 +5304,16 @@ async function translateOutputText(source, options = {}) {
         ? runMadKoreanIntegratedRewrite
         : async () => ({ checked: 0, changed: 0 });
     await runIntegratedAuthorPass({
+        segmented,
+        translations,
+        speakerScopes,
+        speakerIdentity,
+        options,
+    });
+
+    // Keep the final check cheap: local rules shortlist only suspicious
+    // narration rows, then at most one small sparse-repair request is made.
+    await runMadNarrationMicroAudit({
         segmented,
         translations,
         speakerScopes,
@@ -8924,9 +9040,17 @@ function selectionResolvedSpeakerScope(snapshot, speakerIdentity = {}) {
     const segmented = segmentSource(snapshot.source, locks);
     const localScopes = inferLocalTargetDialogueScopes(segmented, speakerIdentity);
     const sourceRows = selectionSourceRows(snapshot);
-    const touchedIds = new Set(sourceRows.map(row => String(row.id || '')));
+    const touchedById = new Map(sourceRows.map(row => [
+        String(row.id || ''),
+        String(row.source || '').trim(),
+    ]));
     let matched = (segmented.segments || []).filter(segment => (
-        segment.type === 'dialogue_candidate' && touchedIds.has(String(segment.id || ''))
+        segment.type === 'dialogue_candidate'
+        && touchedById.has(String(segment.id || ''))
+        // Old translations may reuse the same seg id for a different row after
+        // segmentation rules change. Trust an id only when its source text also
+        // matches; otherwise fall back to source-text matching below.
+        && touchedById.get(String(segment.id || '')) === String(segment.text || '').trim()
     ));
     if (!matched.length) {
         const sourceTexts = new Set(sourceRows.map(row => String(row.source || '').trim()).filter(Boolean));
