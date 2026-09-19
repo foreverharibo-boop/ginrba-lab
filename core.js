@@ -331,7 +331,11 @@ export function ensureBilingualDialogueFormat(
 
     const translatedEnvelope = dialogueEnvelope(result);
     const korean = stripSingleParentheticalEnvelope(translatedEnvelope.body);
-    if (!/[가-힣]/u.test(validationText(korean))) return result;
+    const koreanNameTokenPresent = (nameTokens || []).some(entry => (
+        korean.includes(String(entry?.token || ''))
+        && /[가-힣]/u.test(String(entry?.value || ''))
+    ));
+    if (!/[가-힣]/u.test(validationText(korean)) && !koreanNameTokenPresent) return result;
 
     const sourceEnvelope = dialogueEnvelope(segment.text);
     let source = sourceEnvelope.body;
@@ -1078,9 +1082,18 @@ export function segmentSource(value, nameLocks = []) {
         }
 
         const analysis = analyzeLanguage(content);
-        const passthrough = onlyProtectedTokens(content)
+        // A registered name can consume the entire visible body of a short
+        // direct line (for example, "Dana..."). Keep that row as dialogue:
+        // bilingual display and speaker-scoped formatting still need its
+        // original source spelling even though only a NAME token remains.
+        const protectedNameOnlyDialogue = !insideTaggedContent
+            && piece.type === 'dialogue_candidate'
+            && /@@VERBA_DEEP_NAME_\d{4}@@/u.test(content);
+        const passthrough = !protectedNameOnlyDialogue && (
+            onlyProtectedTokens(content)
             || analysis.total === 0
-            || (analysis.korean > 0 && analysis.english + analysis.japanese + analysis.chinese === 0);
+            || (analysis.korean > 0 && analysis.english + analysis.japanese + analysis.chinese === 0)
+        );
 
         if (passthrough) {
             parts.push({ type: 'passthrough', text: content });

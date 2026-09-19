@@ -57,6 +57,27 @@ assert.equal(
     '"Alex, open it. (알렉스, 그거 열어.)"',
 );
 
+// A line containing only a registered name used to disappear into passthrough
+// after name protection, so the bilingual formatter never saw it.
+const danaOnly = segmentSource('*그는 망설였다.*\n\n"Dana..."', [{ source: 'Dana', target: '다나' }]);
+const danaDialogue = danaOnly.segments.find(segment => segment.type === 'dialogue_candidate');
+assert.ok(danaDialogue);
+assert.equal(danaOnly.parts.find(part => part.id === danaDialogue.id)?.type, 'dialogue_candidate');
+const danaKorean = `"${danaOnly.nameTokens[0].token}..."`;
+const danaFormatted = ensureBilingualDialogueFormat(
+    danaDialogue,
+    danaKorean,
+    settings,
+    null,
+    danaOnly.nameTokens,
+    danaOnly.tokens,
+);
+assert.equal(danaFormatted, '"Dana... (@@VERBA_DEEP_NAME_0000@@...)"');
+assert.equal(
+    assembleTranslation(danaOnly, new Map([[danaDialogue.id, danaFormatted]])),
+    '*그는 망설였다.*\n\n"Dana... (다나...)"',
+);
+
 const speakerOnly = {
     ...settings,
     allDialoguePromptEnabled: false,
