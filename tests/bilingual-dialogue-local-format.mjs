@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {
     assembleTranslation,
+    bilingualDialogueBracketPair,
     bilingualDialogueRequested,
     buildOutputPrompt,
     ensureBilingualDialogueFormat,
@@ -22,6 +23,7 @@ const settings = {
 };
 
 assert.equal(bilingualDialogueRequested(settings), true);
+assert.deepEqual(bilingualDialogueBracketPair(settings), ['(', ')']);
 
 const segmented = segmentSource('Alex said, "I did not say that."', [{ source: 'Alex', target: '알렉스' }]);
 const narration = segmented.segments.find(segment => segment.type === 'narration');
@@ -91,7 +93,7 @@ assert.equal(
         danaOnly.nameTokens,
         danaOnly.tokens,
     ),
-    `"Dana… (${danaOnly.nameTokens[0].token}…)"`,
+    `"Dana... (${danaOnly.nameTokens[0].token}…)"`,
 );
 assert.equal(
     assembleTranslation(danaOnly, new Map([[
@@ -105,7 +107,7 @@ assert.equal(
             danaOnly.tokens,
         ),
     ]])),
-    '*그는 망설였다.*\n\n"Dana… (다나…)"',
+    '*그는 망설였다.*\n\n"Dana... (다나…)"',
 );
 
 const danaSourceAlreadyBilingual = `"Dana… (${danaOnly.nameTokens[0].token}…)"`;
@@ -118,7 +120,38 @@ assert.equal(
         danaOnly.nameTokens,
         danaOnly.tokens,
     ),
-    danaSourceAlreadyBilingual,
+    `"Dana... (${danaOnly.nameTokens[0].token}…)"`,
+);
+
+// DeepSeek can put a closing dialogue quote before the Korean parenthesis.
+// Rebuild from one source half and the final Korean half instead of nesting
+// the malformed model surface inside another pair of parentheses.
+const danaMisplacedQuote = `"${danaOnly.nameTokens[0].token}…"\u00a0(${danaOnly.nameTokens[0].token}…)"`;
+const danaMisplacedFixed = ensureBilingualDialogueFormat(
+    danaDialogue,
+    danaMisplacedQuote,
+    settings,
+    null,
+    danaOnly.nameTokens,
+    danaOnly.tokens,
+);
+assert.equal(danaMisplacedFixed, `"Dana... (${danaOnly.nameTokens[0].token}…)"`);
+assert.equal(
+    assembleTranslation(danaOnly, new Map([[danaDialogue.id, danaMisplacedFixed]])),
+    '*그는 망설였다.*\n\n"Dana... (다나…)"',
+);
+
+const danaMissingParen = `"Dana... (${danaOnly.nameTokens[0].token}…"`;
+assert.equal(
+    ensureBilingualDialogueFormat(
+        danaDialogue,
+        danaMissingParen,
+        settings,
+        null,
+        danaOnly.nameTokens,
+        danaOnly.tokens,
+    ),
+    `"Dana... (${danaOnly.nameTokens[0].token}…)"`,
 );
 
 const speakerOnly = {
@@ -132,6 +165,56 @@ assert.equal(
     ensureBilingualDialogueFormat(dialogue, '"난 그런 말 안 했어."', speakerOnly),
     '"난 그런 말 안 했어."',
 );
+
+const squareInstruction = `${instruction}\nExample: "English dialogue. [한국어 번역.]"`;
+const squareSettings = {
+    ...settings,
+    allDialoguePrompt: squareInstruction,
+};
+assert.deepEqual(bilingualDialogueBracketPair(squareSettings), ['[', ']']);
+assert.equal(
+    ensureBilingualDialogueFormat(
+        dialogue,
+        '"난 그런 말 안 했어."',
+        squareSettings,
+        null,
+        segmented.nameTokens,
+        segmented.tokens,
+    ),
+    '"I did not say that. [난 그런 말 안 했어.]"',
+);
+assert.equal(
+    ensureBilingualDialogueFormat(
+        danaDialogue,
+        danaMisplacedQuote,
+        squareSettings,
+        null,
+        danaOnly.nameTokens,
+        danaOnly.tokens,
+    ),
+    `"Dana... [${danaOnly.nameTokens[0].token}…]"`,
+);
+
+const squareByWording = {
+    ...settings,
+    allDialoguePrompt: `${instruction.replace(/inside parentheses/iu, 'inside square brackets')}\nUse square brackets for the Korean half.`,
+};
+assert.deepEqual(bilingualDialogueBracketPair(squareByWording), ['[', ']']);
+
+const globalSquareSettings = {
+    ...settings,
+    allDialoguePromptEnabled: false,
+    globalPromptEnabled: true,
+    globalPrompt: `${instruction}\n"English. [한국어.]"`,
+};
+assert.deepEqual(bilingualDialogueBracketPair(globalSquareSettings), ['[', ']']);
+
+const specificPromptWins = {
+    ...globalSquareSettings,
+    allDialoguePromptEnabled: true,
+    allDialoguePrompt: `${instruction}\n"English. (한국어.)"`,
+};
+assert.deepEqual(bilingualDialogueBracketPair(specificPromptWins), ['(', ')']);
 
 const prompt = buildOutputPrompt(segmented, settings, '', {}, null, { [dialogue.id]: 'other_dialogue' });
 assert.match(prompt, /BILINGUAL DIALOGUE IS REQUIRED/);

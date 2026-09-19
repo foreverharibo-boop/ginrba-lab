@@ -231,6 +231,74 @@ export function bilingualDialogueRequested(settings = {}) {
         || promptRequestsBilingual(enabledPromptValue(settings, 'allDialoguePrompt', 'allDialoguePromptEnabled'));
 }
 
+const BILINGUAL_BRACKET_PAIRS = [
+    ['(', ')'],
+    ['[', ']'],
+    ['（', '）'],
+    ['【', '】'],
+];
+
+function bracketPairFromBilingualExample(prompt) {
+    const lines = String(prompt || '').split(/\r?\n/u);
+    for (const line of lines) {
+        for (const [open, close] of BILINGUAL_BRACKET_PAIRS) {
+            let cursor = 0;
+            while (cursor < line.length) {
+                const openAt = line.indexOf(open, cursor);
+                if (openAt < 0) break;
+                const closeAt = line.indexOf(close, openAt + open.length);
+                if (closeAt < 0) break;
+                const before = line.slice(0, openAt);
+                const inside = line.slice(openAt + open.length, closeAt);
+                // A format example has a Latin/original-language half before
+                // a bracketed Korean half. This excludes headings such as
+                // [BILINGUAL DIALOGUE FORMAT].
+                if (
+                    /[A-Za-z]/u.test(before)
+                    && (/[가-힣]/u.test(inside) || /\b(?:korean|translation)\b/iu.test(inside))
+                ) return [open, close];
+                cursor = closeAt + close.length;
+            }
+        }
+    }
+    return null;
+}
+
+function bracketPairFromBilingualWording(prompt) {
+    const text = String(prompt || '');
+    if (/(?:square\s*brackets?|대괄호)|\[\s*(?:한국어|한글|번역|korean|translation)[^\]\n]{0,80}\]/iu.test(text)) {
+        return ['[', ']'];
+    }
+    if (/(?:fullwidth\s*parentheses?|전각\s*괄호)|（\s*(?:한국어|한글|번역|korean|translation)[^）\n]{0,80}）/iu.test(text)) {
+        return ['（', '）'];
+    }
+    if (/(?:lenticular\s*brackets?|겹낫표|검은\s*대괄호)|【\s*(?:한국어|한글|번역|korean|translation)[^】\n]{0,80}】/iu.test(text)) {
+        return ['【', '】'];
+    }
+    if (/(?:round\s*brackets?|parentheses?|소괄호)|\(\s*(?:한국어|한글|번역|korean|translation)[^)\n]{0,80}\)/iu.test(text)) {
+        return ['(', ')'];
+    }
+    return null;
+}
+
+export function bilingualDialogueBracketPair(settings = {}) {
+    // Dialogue-specific instructions override the broader global prompt.
+    const prompts = [
+        enabledPromptValue(settings, 'allDialoguePrompt', 'allDialoguePromptEnabled'),
+        enabledPromptValue(settings, 'globalPrompt', 'globalPromptEnabled'),
+    ].filter(prompt => promptRequestsBilingual(prompt));
+
+    for (const prompt of prompts) {
+        const examplePair = bracketPairFromBilingualExample(prompt);
+        if (examplePair) return examplePair;
+    }
+    for (const prompt of prompts) {
+        const wordingPair = bracketPairFromBilingualWording(prompt);
+        if (wordingPair) return wordingPair;
+    }
+    return ['(', ')'];
+}
+
 function allowsIntentionalForeignText(segment, settings = {}, speakerScopes = null) {
     // Visible text inside any existing paired tag is always Korean-only.
     // A global bilingual-format prompt must not relax validation for this scope.
@@ -368,6 +436,65 @@ function looksLikeBilingualDialogue(segment, translation, nameTokens = [], prote
     return preservesWholeEnglishDialogue && hasWrappedKorean;
 }
 
+function stripLooseDialogueQuotes(value) {
+    let text = String(value || '').trim();
+    const opening = ['“', '"', '「', '『', '‘'];
+    const closing = ['”', '"', '」', '』', '’'];
+    while (opening.some(mark => text.startsWith(mark))) text = text.slice(1).trim();
+    while (closing.some(mark => text.endsWith(mark))) text = text.slice(0, -1).trim();
+    return text;
+}
+
+function extractKoreanDialogueHalf(segment, translation, nameTokens = [], protectedTokens = []) {
+    const sourceEnvelope = dialogueEnvelope(segment?.text || '');
+    const translatedEnvelope = dialogueEnvelope(translation);
+    const expectedSource = restoreBilingualDetectionTokens(
+        sourceEnvelope.body,
+        nameTokens,
+        protectedTokens,
+        'source',
+    );
+    const body = String(translatedEnvelope.body || '').trim();
+
+    // Prefer the final parenthesized Korean half only when the preceding text
+    // is the source dialogue, or when the model misplaced a closing quote in
+    // front of that parenthesis. A Korean-only sentence may legitimately end
+    // in an aside, so an arbitrary final parenthesis must not be discarded.
+    const trailing = trailingParentheticalParts(body);
+    if (trailing) {
+        const leftAsSource = restoreBilingualDetectionTokens(
+            stripLooseDialogueQuotes(trailing.left),
+            nameTokens,
+            protectedTokens,
+            'source',
+        );
+        const misplacedQuote = /["”’」』]\s*$/u.test(trailing.left);
+        if (
+            normalizedDialogueSurface(leftAsSource) === normalizedDialogueSurface(expectedSource)
+            || misplacedQuote
+        ) return stripLooseDialogueQuotes(trailing.right);
+    }
+
+    // Recover an otherwise correct bilingual line whose final parenthesis was
+    // omitted or placed outside the dialogue quote: "Source (한국어".
+    const openingMarks = ['(', '（', '[', '【'];
+    for (let index = body.length - 1; index >= 0; index -= 1) {
+        if (!openingMarks.includes(body[index])) continue;
+        const leftAsSource = restoreBilingualDetectionTokens(
+            stripLooseDialogueQuotes(body.slice(0, index)),
+            nameTokens,
+            protectedTokens,
+            'source',
+        );
+        if (normalizedDialogueSurface(leftAsSource) !== normalizedDialogueSurface(expectedSource)) continue;
+        return stripLooseDialogueQuotes(
+            body.slice(index + 1).replace(/[\)\]）】]+\s*$/gu, ''),
+        );
+    }
+
+    return stripLooseDialogueQuotes(stripSingleParentheticalEnvelope(body));
+}
+
 function dialogueEnvelope(value) {
     const raw = String(value || '');
     const leading = raw.match(/^\s*/u)?.[0] || '';
@@ -408,12 +535,8 @@ export function ensureBilingualDialogueFormat(
 ) {
     const result = String(translation || '');
     if (segment?.type !== 'dialogue_candidate' || !bilingualDialogueRequested(settings)) return result;
-    const canonicalBilingual = canonicalizeExactBilingualDialogue(segment, result, nameTokens, protectedTokens);
-    if (canonicalBilingual !== null) return canonicalBilingual;
-    if (looksLikeBilingualDialogue(segment, result, nameTokens, protectedTokens)) return result;
-
     const translatedEnvelope = dialogueEnvelope(result);
-    const korean = stripSingleParentheticalEnvelope(translatedEnvelope.body);
+    const korean = extractKoreanDialogueHalf(segment, result, nameTokens, protectedTokens);
     const koreanNameTokenPresent = (nameTokens || []).some(entry => (
         korean.includes(String(entry?.token || ''))
         && /[가-힣]/u.test(String(entry?.value || ''))
@@ -429,7 +552,8 @@ export function ensureBilingualDialogueFormat(
         source = source.split(String(entry?.token || '')).join(String(entry?.value || ''));
     }
 
-    return `${translatedEnvelope.leading}${sourceEnvelope.open}${source} (${korean})${sourceEnvelope.close}${translatedEnvelope.trailing}`;
+    const [translationOpen, translationClose] = bilingualDialogueBracketPair(settings);
+    return `${translatedEnvelope.leading}${sourceEnvelope.open}${source} ${translationOpen}${korean}${translationClose}${sourceEnvelope.close}${translatedEnvelope.trailing}`;
 }
 
 /**
