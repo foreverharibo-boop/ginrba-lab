@@ -45,7 +45,9 @@ assert.ok(flashChunks.every(chunk=>chunk.length<=60));
 const localContext=flashHelpers.scopedSourceContext({segments:longNarration},[longNarration[3]]);
 assert.equal(localContext.length,520*3+2);
 for(const count of [1,2,3])for(const mode of ['ordinary','compressed','extreme']){
- Object.assign(settings,{developerOutputSplitCount:count,developerCompressedPromptEnabled:mode==='compressed',developerExtremeCompressedPromptEnabled:mode==='extreme'});
+ Object.assign(settings,{developerMadKoreanOutputEnabled:false,developerHongjinFlavorEnabled:false,
+  dialoguePromptEnabled:false,otherDialoguePromptEnabled:false,dialogueEndingPreferred:'',dialogueEndingAvoid:'',dialogueEndingRepetitionReduction:false,
+  developerOutputSplitCount:count,developerCompressedPromptEnabled:mode==='compressed',developerExtremeCompressedPromptEnabled:mode==='extreme'});
  requests=[];const map=await route(segmented,{}, {speakerIdentity:identity,oneTimeInstruction:'ONE_TIME'});
  assert.equal(requests.length,count);assert.equal(map.size,segmented.segments.length);
  assert.deepEqual(requests.flatMap(r=>r.segments),segmented.segments);
@@ -79,17 +81,35 @@ for(const row of requests){
   assert.equal(scope,expected);
  }
 }
-// Mad Korean + Hongjin restores the 0.5.84 mixed-scene primary pass while
-// carrying row-level scope labels as a hard voice firewall.
+// Mad Korean + Hongjin uses two parallel primary lanes: one focused TARGET
+// dialogue request and one non-target body request at one-split.
+const flavorScopes=Object.fromEntries(segmented.segments.filter(s=>s.type==='dialogue_candidate').map((s,i)=>[
+ s.id,i===0?'target_dialogue':i===1?'user_dialogue':'npc_dialogue',
+]));
 Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFlavorEnabled:true,
  developerOutputSplitCount:1,dialoguePrompt:'',otherDialoguePrompt:''});
-requests=[];await route(segmented,scopes,{speakerIdentity:identity});
-assert.equal(requests.length,1);
-for(const row of requests){
- assert.match(row.prompt,/speaker_scope is an absolute row-level firewall/);
- assert.match(row.prompt,/"speaker_scope":"target_dialogue"/);
- assert.match(row.prompt,/"speaker_scope":"other_dialogue"/);
- assert.deepEqual(row.segments,segmented.segments);
+requests=[];await route(segmented,flavorScopes,{speakerIdentity:identity});
+assert.equal(requests.length,2);
+const targetLane=requests.find(row=>row.options.stage.includes('target-dialogue'));
+const bodyLane=requests.find(row=>row.options.stage.includes('non-target'));
+assert.ok(targetLane);assert.ok(bodyLane);
+assert.ok(targetLane.segments.every(segment=>flavorScopes[segment.id]==='target_dialogue'));
+assert.match(targetLane.prompt,/CONFIRMED Hong-jin DIALOGUE ONLY/);
+assert.match(targetLane.prompt,/"required_voice":"MANDATORY CURRENT TARGET CHARACTER voice/);
+assert.doesNotMatch(targetLane.prompt,/"output_scope":"other_dialogue"/);
+assert.ok(bodyLane.segments.every(segment=>!targetLane.segments.includes(segment)));
+assert.match(bodyLane.prompt,/NON-TARGET BODY/);
+assert.match(bodyLane.prompt,/"output_scope":"user_dialogue"/);
+assert.match(bodyLane.prompt,/"output_scope":"npc_dialogue"/);
+assert.doesNotMatch(bodyLane.prompt,/"required_voice":/);
+assert.deepEqual([...targetLane.segments,...bodyLane.segments].map(s=>s.id).sort(),segmented.segments.map(s=>s.id).sort());
+for(const count of [2,3]){
+ settings.developerOutputSplitCount=count;requests=[];
+ await route(segmented,flavorScopes,{speakerIdentity:identity});
+ assert.equal(requests.length,count+1);
+ assert.equal(requests.filter(row=>row.options.stage.includes('target-dialogue')).length,1);
+ assert.equal(requests.filter(row=>row.options.stage.includes('non-target')).length,count);
+ assert.deepEqual(requests.flatMap(row=>row.segments).map(s=>s.id).sort(),segmented.segments.map(s=>s.id).sort());
 }
 // Real whole-output pipeline: planning and final verification run once for the
 // whole message, not once per chunk; only the main translation is divided.
@@ -98,9 +118,9 @@ let planned=0,classified=0,audited=0,integratedRewritten=0;
 const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  singlePassFlavorMode:()=>settings.developerMadKoreanOutputEnabled===true||settings.developerHongjinFlavorEnabled===true,
  normalizedCharacterNameLocks:()=>[{source:'Hong-jin',target:'홍진'}],
- localMadHongjinIdentityNameLocks:()=>[],
+ localFlavorIdentityNameLocks:()=>[],
  planRepeatedRoleTermLocks:async s=>{planned++;assert.equal(s.segments.length,segmented.segments.length);return [];},
- classifyOutputDialogueSpeakers:async()=>{classified++;return scopes;},requestScopedOutputTranslations:route,
+ classifyOutputDialogueSpeakers:async()=>{classified++;return flavorScopes;},requestScopedOutputTranslations:route,
  repairRepeatedRoleTermConsistency:async()=>{},repairProtectedTokenIntegrity:async()=>{},
  findBannedWords:()=>[],findUntranslatedSegments:()=>[],repairIndivisibleIdentityNames:t=>t,repairStrictCanonicalIdentityNames:t=>t,repairOutputIdentityNames:t=>t,repairKoreanParticleAlternatives:t=>t,repairDialogueQuotationEnvelope:t=>t,
  repairDuplicateCanonicalIdentityNames:t=>t,repairLeadingLockedNameSubjectParticle:t=>t,canonicalKoreanIdentityNames:()=>[],
@@ -111,7 +131,7 @@ const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  buildSourceMap:(_s,_t,result)=>[{start:0,end:result.length}],console};
 const full=Function(...Object.keys(fullEnv),between('function normalizeTaggedOutputTranslations(', 'async function repairSegmentsByOutputScope(')+between('async function translateOutputText(', 'function inputIdentitySpellingContext(')+'\nreturn translateOutputText;')(...Object.values(fullEnv));
 requests=[];const fullResult=await full(source,{speakerIdentity:identity});
-assert.equal(requests.length,3);assert.equal(planned,1);assert.equal(classified,1);assert.equal(integratedRewritten,1);assert.equal(audited,1);
+assert.equal(requests.length,4);assert.equal(planned,1);assert.equal(classified,1);assert.equal(integratedRewritten,1);assert.equal(audited,1);
 assert.match(fullResult.translation,/홍진/);assert.match(fullResult.translation,/`CODE_UNCHANGED`/);assert.match(fullResult.translation,/<Info_panel>/);
 // Minimal uses ONLY its own prompt regardless of the independent split setting.
 for(const count of [1,2,3]){
@@ -156,4 +176,4 @@ assert.ok(!markup(settings,String,()=>'', '', '').includes('verba-deep-developer
 settings.developerMode=true;assert.ok(!markup(settings,String,()=>'', '', '').includes('verba-deep-developer-output-split-count'));
 const generalMarkup=Function('settings',between('function generalSplitSettingsMarkup(', 'function generalRelationshipSettingsMarkup(')+'\nreturn generalSplitSettingsMarkup();');
 for (const dev of [false,true]) assert.match(generalMarkup({...settings,developerMode:dev}), /value="3" selected/);
-console.log('PASS: independent 1/2/3 split gate, full coverage, unchanged normal/compact/extreme prompts, scope isolation, whole-output planning/checks, minimal combinations, 3-request concurrency, order, cancellation/failure and UI.');
+console.log('PASS: independent 1/2/3 split gate, two-lane TARGET/body routing, full coverage, unchanged normal/compact/extreme prompts, scope isolation, whole-output checks, minimal combinations, concurrency, order, cancellation/failure and UI.');

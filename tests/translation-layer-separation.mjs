@@ -64,4 +64,4 @@ assert.doesNotMatch(translateBody, /await runHongjinVoiceRewrite\(/);
 assert.match(translateBody, /source-less voice rewrite is deliberately not called/);
 assert.match(translateBody, /noModelFollowups: singlePassFlavorMode\(\) \? true/);
 
-console.log('PASS: ordinary E→K stays neutral; both flavor modes use one primary pass and exclude the source-less Hongjin follow-up rewrite.');
+console.log('PASS: ordinary E→K stays neutral; flavor modes use primary authoring lanes and exclude the source-less Hongjin follow-up rewrite.');

@@ -1065,15 +1065,15 @@ function koreanIdentityVariants(value) {
 }
 
 /**
- * Resolve only high-confidence TARGET dialogue locally. Mad Korean avoids an
- * extra speaker-attribution API call, but defaulting every quote to OTHER made
- * the Hongjin voice and its sparse audit unreachable. Uncertainty stays OTHER.
+ * Resolve high-confidence TARGET / USER / NPC dialogue locally. Flavor modes
+ * avoid a separate attribution request, while uncertainty stays NPC so target
+ * or user-specific register can never leak into an unknown speaker.
  */
 export function inferLocalTargetDialogueScopes(segmented = {}, speakerIdentity = {}) {
     const segments = Array.isArray(segmented?.segments) ? segmented.segments : [];
     const scopes = Object.fromEntries(segments
         .filter(segment => segment?.type === 'dialogue_candidate')
-        .map(segment => [String(segment.id || ''), 'other_dialogue']));
+        .map(segment => [String(segment.id || ''), 'npc_dialogue']));
     if (!Object.keys(scopes).length) return scopes;
 
     const targetNames = new Set(koreanIdentityVariants(speakerIdentity.characterName));
@@ -1116,7 +1116,7 @@ export function inferLocalTargetDialogueScopes(segmented = {}, speakerIdentity =
         const target = markerPosition(text, targetMarkers);
         const user = markerPosition(text, userMarkers);
         if (target < 0 && user < 0) return 'unknown';
-        return target > user ? 'target' : 'other';
+        return target > user ? 'target' : 'user';
     };
     const startsWithMarker = (text, markers) => {
         const value = String(text || '').trimStart().toLocaleLowerCase();
@@ -1136,27 +1136,37 @@ export function inferLocalTargetDialogueScopes(segmented = {}, speakerIdentity =
         : gender === 'male' ? /^(?:she|her)\b/iu
             : null;
     const speechVerb = /\b(?:said|asked|answered|replied|added|continued|shouted|yelled|barked|ordered|warned|called|snapped|growled|muttered|whispered|spat|gasped|breathed|grunted|demanded)\b/iu;
+    const npcLead = text => {
+        const lead = String(text || '').trimStart().slice(0, 260);
+        if (!lead || startsWithMarker(lead, targetMarkers) || startsWithMarker(lead, userMarkers)) return false;
+        if (/^(?:a|an|the|another|one|some|someone|somebody)\s+[a-z][^.!?]{0,100}\b(?:appeared|approached|walked|moved|came|stepped|entered|stood|sat|looked|turned|raised|held|carried|set|pulled|checked|reached|leaned|crouched|ducked|said|asked|answered|replied|shouted|muttered|warned)\b/iu.test(lead)) return true;
+        return /^[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)?\s+(?:said|asked|answered|replied|added|shouted|yelled|ordered|warned|called|snapped|muttered|whispered)\b/u.test(lead);
+    };
 
     const narrationRole = (text, activeRole = 'unknown') => {
         const rows = sentences(text);
         if (!rows.length) return activeRole;
         const tail = rows.at(-1);
+        if (npcLead(tail)) return 'npc';
         if (startsWithMarker(tail, targetMarkers)) return 'target';
-        if (startsWithMarker(tail, userMarkers)) return 'other';
+        if (startsWithMarker(tail, userMarkers)) return 'user';
         if (targetPronoun.test(tail) && activeRole === 'target') return 'target';
-        if (oppositePronoun?.test(tail)) return 'other';
+        if (oppositePronoun?.test(tail) && activeRole === 'user') return 'user';
+        if (/^(?:he|him|she|her|they|them)\b/iu.test(tail) && activeRole === 'npc') return 'npc';
         const explicit = lastExplicitRole(text);
         if (explicit !== 'unknown') return explicit;
         const first = rows[0];
         if (targetPronoun.test(first) && activeRole === 'target') return 'target';
-        if (oppositePronoun?.test(first)) return 'other';
+        if (oppositePronoun?.test(first) && activeRole === 'user') return 'user';
+        if (/^(?:he|him|she|her|they|them)\b/iu.test(first) && activeRole === 'npc') return 'npc';
         return activeRole;
     };
-    const speechTagRole = (text, activeRole = 'unknown', targetObserved = false) => {
+    const speechTagRole = (text, activeRole = 'unknown', targetObserved = false, userContext = false) => {
         const lead = String(text || '').trimStart().slice(0, 240);
         if (!speechVerb.test(lead)) return 'unknown';
         if (startsWithMarker(lead, targetMarkers)) return 'target';
-        if (startsWithMarker(lead, userMarkers)) return 'other';
+        if (startsWithMarker(lead, userMarkers)) return 'user';
+        if (npcLead(lead)) return 'npc';
         // In a character output the target is often introduced by name, the
         // USER is mentioned next, and only then a post-quote "he/she said"
         // identifies the speaker. Requiring the immediately active actor to
@@ -1165,7 +1175,8 @@ export function inferLocalTargetDialogueScopes(segmented = {}, speakerIdentity =
         // gendered speech tag is strong enough; without that anchor (for
         // example, "A guard ... he shouted") it deliberately stays OTHER.
         if (targetPronoun.test(lead) && (activeRole === 'target' || targetObserved)) return 'target';
-        if (oppositePronoun?.test(lead)) return 'other';
+        if (oppositePronoun?.test(lead) && (activeRole === 'user' || userContext)) return 'user';
+        if (/^(?:he|him|she|her|they|them)\b/iu.test(lead) && activeRole === 'npc') return 'npc';
         return 'unknown';
     };
 
@@ -1182,14 +1193,18 @@ export function inferLocalTargetDialogueScopes(segmented = {}, speakerIdentity =
             continue;
         }
 
+        const previousNarration = segments[index - 1]?.type === 'narration' ? String(segments[index - 1].text || '') : '';
         const nextNarration = segments[index + 1]?.type === 'narration' ? segments[index + 1].text : '';
-        let role = speechTagRole(nextNarration, activeRole, targetObserved);
-        if (role === 'unknown' && activeRole === 'target') role = 'target';
+        const userContext = markerPosition(previousNarration, userMarkers) >= 0;
+        let role = speechTagRole(nextNarration, activeRole, targetObserved, userContext);
+        if (role === 'unknown' && ['target', 'user', 'npc'].includes(activeRole)) role = activeRole;
         if (role === 'unknown' && lastDialogueRole === 'target') {
-            const bridge = segments[index - 1]?.type === 'narration' ? String(segments[index - 1].text || '') : '';
+            const bridge = previousNarration;
             if (!bridge || speechTagRole(bridge, 'target', targetObserved) === 'target') role = 'target';
         }
         if (role === 'target') scopes[segment.id] = 'target_dialogue';
+        else if (role === 'user') scopes[segment.id] = 'user_dialogue';
+        else if (role === 'npc') scopes[segment.id] = 'npc_dialogue';
         if (role !== 'unknown') {
             activeRole = role;
             lastDialogueRole = role;
@@ -4418,7 +4433,23 @@ export function buildMadFlashV2ScopedPrompt({
     scope = 'narration',
     speakerIdentity = {},
 }) {
-    const payload = (segments || []).map(({ id, type, text }) => ({ id, type, source: text }));
+    const payload = (segments || []).map(({ id, type, text, outputScope }, index) => ({
+        id,
+        type,
+        ...(scope === 'non_target_mixed'
+            ? {
+                output_scope: type === 'dialogue_candidate'
+                    ? (['user_dialogue', 'npc_dialogue'].includes(outputScope) ? outputScope : 'npc_dialogue')
+                    : type === 'tagged_content' ? 'tagged_content' : 'narration',
+            }
+            : {}),
+        ...(scope === 'target_dialogue'
+            ? {
+                required_voice: `MANDATORY CURRENT TARGET CHARACTER voice on row ${index + 1}: never return neutral textbook dialogue. Integrate at least one context-compatible carrier into the whole utterance—rough verb, coarse intensifier, sly complaint, shameless understatement, brusque care, raw contraction/ending, or profanity-shaped rhythm. Preserve the exact speech act and facts; do not invent a joke.`,
+            }
+            : {}),
+        source: text,
+    }));
     const characterName = String(speakerIdentity.characterName || '').trim() || 'TARGET CHARACTER';
     const userName = String(speakerIdentity.userName || '').trim() || 'USER';
     const bannedWords = parseBannedWords(settings.bannedWords);
@@ -4426,6 +4457,7 @@ export function buildMadFlashV2ScopedPrompt({
         narration: 'NARRATION ONLY',
         target_dialogue: `CONFIRMED ${characterName} DIALOGUE ONLY`,
         other_dialogue: 'CONFIRMED USER/NPC/OTHER DIALOGUE ONLY',
+        non_target_mixed: 'NON-TARGET BODY — NARRATION + USER DIALOGUE + NPC DIALOGUE + TAGGED CONTENT',
         tagged_content: 'VISIBLE TEXT INSIDE TAGS ONLY',
     }[scope] || String(scope);
     const register = value => value === 'banmal'
@@ -4435,6 +4467,12 @@ export function buildMadFlashV2ScopedPrompt({
         narration: `Write clear contemporary Korean fiction prose. Rebuild information order, clauses and sentence boundaries around Korean rhythm. Keep the POV, actor, physical action, sensation and emotional direction exact. Do not import any character's profanity or spoken mannerisms into narration.${madFlashV2NarrationManual()}`,
         other_dialogue: `Write genuinely spoken contemporary Korean for the confirmed non-target speaker. Preserve the speech act, listener, relationship and emotional temperature. Never imitate ${characterName}'s sly, vulgar or profane voice. USER→TARGET register: ${register(settings.developerMadKoreanUserToTargetRegister)}.${madFlashV2OtherDialogueManual(characterName)}`,
         tagged_content: `Translate visible labels and prose into concise natural Korean. Preserve tag tokens, attributes, code, macros, URLs, numbers, punctuation and layout exactly. Do not apply character voice or bilingual output.${madFlashV2TaggedManual()}`,
+        non_target_mixed: `Every target declares output_scope and that declaration is final.
+- narration: write original-quality contemporary Korean fiction prose. Rebuild information order and collocations naturally while preserving POV, actor, action, sensation and emotional direction. Never import TARGET's spoken profanity or cadence.
+- user_dialogue: confirmed CURRENT USER/PLAYER/PERSONA speech. Preserve that user's own personality, speech act, source profanity and emotional force. When speaking to TARGET, use USER→TARGET register: ${register(settings.developerMadKoreanUserToTargetRegister)}. Never import TARGET's configured profanity density, swagger, vulgar verbs, teasing cadence or self-reference.
+- npc_dialogue: confirmed third-party/NPC speech. Derive register only from that NPC's role, relationship, source wording and scene. Preserve source profanity at comparable force, but never apply TARGET or USER-specific mannerisms and never assume the NPC shares USER→TARGET register.
+- tagged_content: translate only visible natural-language labels/prose concisely. Preserve tag tokens, attributes, code, macros, URLs, numbers, punctuation and layout exactly. Never apply character voice.
+Read all rows as one scene for referents and continuity, but never average narration and dialogue into one style.${madFlashV2NarrationManual()}${madFlashV2OtherDialogueManual(characterName)}${madFlashV2TaggedManual()}`,
         target_dialogue: `Every row is confirmed direct dialogue spoken by ${characterName}. Preserve the proposition, listener, speech act, relationship, emotional direction and scene stakes, then write the utterance as original contemporary Korean speech. TARGET→USER register: ${register(settings.developerMadKoreanTargetToUserRegister)}.`,
     }[scope] || '';
     const hongjin = scope === 'target_dialogue' && settings.developerHongjinFlavorEnabled === true;
@@ -4470,12 +4508,8 @@ ${madFlashV2HongjinManual({ characterName, userName, profanity: settings.develop
 - A clean factual line with ordinary endings FAILS even if semantically correct. A clean line with one detachable curse also FAILS. His verbs, contractions, particles, information order, shameless minimization, rough afterbeat and profanity-shaped rhythm must carry the voice.
 - Injury/exhaustion does not make TARGET clinical or polite. Concern does not erase TARGET's rough identity. Seriousness suppresses forced jokes, NOT roughness, profanity or brazen understatement.
 - At HIGH profanity, every compatible row must visibly contain an integrated coarse mechanism; across multiple rows, most must contain explicit contemporary profanity or a vulgar construction. Rotate mechanisms instead of repeating one word.
-- Calibrate from these mechanisms, preserving the actual source facts:
-  · dry deflection/boast: “저 새끼들 꼬라지를 봤어야 되는데.”
-  · dismissive injury report: “어깨 빠진 거 도로 처맞췄고, 눈썹 위는 꿰맸어. 나머진 뭐, 멍 좀 들고 재수가 좆같았던 거지.”
-  · concealed concern as order: “너도 좀 처자. 밤 꼴딱 샌 건 똑같잖아.”
-  · exhausted bravado: “그만 좀 꼬라봐. 안 뒈져. 피곤해 뒤질 것 같아서 그렇지.”
-- These are calibration examples, not mandatory fixed translations. Never add facts or reuse wording when the source intent differs.
+- Choose mechanisms from the actual scene: dry deflection when TARGET deflects; shameless understatement when TARGET minimizes; a rough practical order when TARGET cares through action; clipped urgency in danger; situation-directed profanity at a genuine pressure point. These are functions, never fixed lines.
+- Do not import medical, survival, injury, enemy, romance or care-taking content unless that exact content exists in the current source. Never reuse a previous scene's vocabulary merely because it once expressed the voice well.
 - Before returning, inspect EVERY row. If it could be spoken by a generic clean survival-fiction man, rewrite it again.`
         : scope === 'other_dialogue'
             ? `FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE
@@ -4487,6 +4521,15 @@ ${madFlashV2HongjinManual({ characterName, userName, profanity: settings.develop
 - Build every image from a complete natural Korean collocation. Useful mechanisms include: 눈이 어둠에 익다; 군화가 흙바닥을 밟을 때마다 소리가 낮게 울리다; 피로가 뼛속까지 내려앉다; 뱉은 말이 둘 사이에 남다.
 - Never copy warning language or incomplete fragments. Keep the required noun with its predicate: the SOUND may spread or ring, not the boot itself; fatigue may settle or bore into the bones, but incompatible source adjectives must be discarded.
 - Read every completed row aloud as original Korean fiction. If the English clause order or dictionary pairing is still visible, erase and rewrite the whole row.`
+                : scope === 'non_target_mixed'
+                    ? `FINAL NON-TARGET BODY GATE
+- Obey each row's output_scope. narration is prose; user_dialogue is the CURRENT USER/PLAYER/PERSONA; npc_dialogue is a third-party character; tagged_content retains structure.
+- Never collapse user_dialogue and npc_dialogue into one generic “other speaker” voice. USER register comes from the current USER identity and relationship; each NPC register comes from that NPC's own role and scene.
+- Never import CURRENT TARGET CHARACTER's added profanity, sly cadence, vulgar commands, swagger or self-reference into any row in this request.
+- Preserve source profanity already spoken by USER or NPC at comparable Korean force. The firewall blocks imported TARGET voice, not source swearing.
+- Reject medical/dictionary calques and incomplete Korean collocations. In a medical camp, a reduced dislocated shoulder means the shoulder was put back into place, never that it was “conquered.” A grocery list is a written list, not a shopping basket. Boots make or carry a sound; the boots themselves do not become a sound.
+- Keep full Korean names indivisible. Never split a final name syllable into a particle or insert a space inside one person's Korean name.
+- Before returning, read every row once as standalone Korean. Repair dangling subjects, duplicated movements, malformed name+particle joins and source-order syntax locally within that row.`
                 : `FINAL STRUCTURE GATE
 - Preserve protected structure exactly and translate only visible natural-language text. No character voice may enter metadata.`;
 
@@ -4538,7 +4581,7 @@ export function buildScopedOutputPrompt({
     scope = 'narration',
     speakerIdentity = {},
 }) {
-    const payload = (segments || []).map(({ id, type, text }) => ({ id, type, text }));
+    const payload = (segments || []).map(({ id, type, text, outputScope }) => ({ id, type, text, outputScope }));
     const dialogue = scope === 'target_dialogue' || scope === 'other_dialogue';
     const taggedContent = scope === 'tagged_content';
     const targetDialogue = scope === 'target_dialogue';

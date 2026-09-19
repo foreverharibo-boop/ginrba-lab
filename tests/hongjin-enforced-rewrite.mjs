@@ -43,7 +43,7 @@ assert.equal(highHelpers.hongjinSceneVoiceFailure(sceneRows, new Map([
 assert.doesNotMatch(index, /throw new Error\(`김홍진 보이스 강제 재작성 실패:/u);
 
 assert.doesNotMatch(index, /needsHongjinAttribution/);
-assert.match(index, /localMadHongjinIdentityNameLocks/);
+assert.match(index, /localFlavorIdentityNameLocks/);
 assert.match(index, /const needsSpeakerIsolation = Boolean\(\s*!madKoreanExclusiveMode\(\)/s);
 assert.match(index, /hongjin-voice-scene-retry/);
 assert.match(index, /function hongjinSceneVoiceFailure\(/);

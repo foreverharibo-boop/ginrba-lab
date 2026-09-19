@@ -59,7 +59,9 @@ assert.doesNotMatch(other, /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING R
 assert.match(target, /sly, shameless, playful/);
 assert.match(target, /original contemporary Korean speech/);
 assert.match(target, /FINAL EXECUTION GATE — THIS OVERRIDES ANY BLAND DEFAULT/);
-assert.match(target, /어깨 빠진 거 도로 처맞췄고/);
+assert.match(target, /These are functions, never fixed lines/);
+assert.match(target, /Do not import medical, survival, injury, enemy, romance or care-taking content/);
+assert.doesNotMatch(target, /어깨 빠진 거 도로 처맞췄고/);
 assert.match(target, /generic clean survival-fiction man/);
 assert.match(other, /FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE/);
 assert.match(other, /Preserve every source swear or coarse idiom/);

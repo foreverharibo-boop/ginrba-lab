@@ -45,12 +45,12 @@ for (const id of dialogueIds) assert.equal(scopes[id], 'target_dialogue', `${id}
 const mixed = segmentSource(`Hong-jin looked at Dam-eun. "No," she said. Dam-eun turned away. "Wait here."`, locks);
 const mixedScopes = inferLocalTargetDialogueScopes(mixed, identity);
 for (const id of mixed.segments.filter(row => row.type === 'dialogue_candidate').map(row => row.id)) {
-    assert.equal(mixedScopes[id], 'other_dialogue', `${id} must not leak Hong-jin voice into USER dialogue`);
+    assert.equal(mixedScopes[id], 'user_dialogue', `${id} must be identified as current USER dialogue`);
 }
 
 const npc = segmentSource(`A guard raised his weapon. "Stop right there," he shouted.`, locks);
 const npcId = npc.segments.find(row => row.type === 'dialogue_candidate').id;
-assert.equal(inferLocalTargetDialogueScopes(npc, identity)[npcId], 'other_dialogue');
+assert.equal(inferLocalTargetDialogueScopes(npc, identity)[npcId], 'npc_dialogue');
 
 // Regression: the real failure shape that previously left every Hong-jin line
 // clean. The USER can be mentioned between the target's name and a post-quote
@@ -96,7 +96,7 @@ assert.match(prompt, /prohibit added TARGET profanity/);
 const index = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 assert.match(index, /inferLocalTargetDialogueScopes\(segmented, speakerIdentity\)/);
 assert.match(index, /options\.tuning \|\| null,\s*speakerScopes,/s);
-assert.match(index, /localMadHongjinIdentityNameLocks/);
+assert.match(index, /localFlavorIdentityNameLocks/);
 assert.doesNotMatch(index, /needsHongjinAttribution/);
 
 const selectionResolverStart = index.indexOf('function selectionResolvedSpeakerScope(');
@@ -137,8 +137,8 @@ const scopeAt = indexValue => resolveSelectionScope({
     end: selectionMap[indexValue].end,
     sourceMap: selectionMap,
 }, identity);
-assert.equal(scopeAt(0), 'other_dialogue', 'Dam-eun selection must never receive Hong-jin voice');
-assert.equal(scopeAt(1), 'other_dialogue', 'medic selection must never receive Hong-jin voice');
+assert.equal(scopeAt(0), 'user_dialogue', 'current USER selection must retain USER scope');
+assert.equal(scopeAt(1), 'npc_dialogue', 'third-party selection must retain NPC scope');
 assert.equal(scopeAt(2), 'target_dialogue', 'Hong-jin selection must retain Hong-jin voice');
 const staleMedicMap = selectionMap.map(row => ({ ...row }));
 staleMedicMap[1] = {
@@ -152,6 +152,6 @@ assert.equal(resolveSelectionScope({
     start: staleMedicMap[1].start,
     end: staleMedicMap[1].end,
     sourceMap: staleMedicMap,
-}, identity), 'other_dialogue', 'stale id collision must fall back to source text instead of leaking target voice');
+}, identity), 'npc_dialogue', 'stale id collision must fall back to source text instead of leaking target voice');
 
-console.log(`PASS: local attribution marks ${dialogueIds.length} Hong-jin lines and selection retranslation resolves Dam-eun/medic/Hong-jin scopes without an API call.`);
+console.log(`PASS: local attribution marks ${dialogueIds.length} TARGET lines and selection retranslation separates current USER, NPC and TARGET without an API call.`);

@@ -56,7 +56,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.122';
+const EXTENSION_VERSION = '0.5.124';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -3979,9 +3979,11 @@ function repairKoreanParticleAlternatives(value) {
 function outputScopeForSegment(segment, speakerScopes = {}) {
     if (segment?.type === 'tagged_content') return 'tagged_content';
     if (segment?.type !== 'dialogue_candidate') return 'narration';
-    return speakerScopes?.[segment.id] === 'target_dialogue'
-        ? 'target_dialogue'
-        : 'other_dialogue';
+    const resolved = speakerScopes?.[segment.id];
+    if (resolved === 'target_dialogue') return 'target_dialogue';
+    if (resolved === 'user_dialogue') return 'user_dialogue';
+    if (resolved === 'npc_dialogue') return 'npc_dialogue';
+    return 'other_dialogue';
 }
 
 function segmentsGroupedByOutputScope(segments, speakerScopes = {}) {
@@ -4026,7 +4028,9 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
         : {};
     const scopes = Object.fromEntries(dialogueSegments.map(segment => [
         segment.id,
-        localScopes[segment.id] === 'target_dialogue' ? 'target_dialogue' : 'other_dialogue',
+        ['target_dialogue', 'user_dialogue', 'npc_dialogue'].includes(localScopes[segment.id])
+            ? localScopes[segment.id]
+            : 'npc_dialogue',
     ]));
 
     // Flavor modes already have a deterministic scene-local resolver. Keep
@@ -4034,10 +4038,9 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
     // classifier request before the actual translation.
     if (singlePassFlavorMode()) return scopes;
 
-    // Mad Korean + Hong-jin uses the local scene resolver and sends its
-    // per-row scope labels inside the two mixed primary requests. Do not add a
-    // separate classifier request: it both delayed Flash and detached dialogue
-    // from the scene that gives the voice its rhythm.
+    // Mad Korean + Hong-jin uses the local scene resolver before its parallel
+    // TARGET/body lanes. Do not add a separate classifier request: it delayed
+    // Flash and detached dialogue from the scene that gives the voice rhythm.
     const needsSpeakerIsolation = Boolean(
         !madKoreanExclusiveMode() && (
         (settings.dialoguePromptEnabled !== false && String(settings.dialoguePrompt || '').trim())
@@ -4118,6 +4121,7 @@ async function requestScopedGroupTranslations({
             });
         } catch (error) {
             if (isAbort(error, options.signal)) throw error;
+            if (options.noModelFollowups === true) throw error;
 
             const recovered = error.partialTranslations instanceof Map
                 ? new Map(error.partialTranslations)
@@ -4225,13 +4229,95 @@ function scopedSourceContext(segmented, targetSegments) {
     const end = Math.min(all.length, Math.max(...indexes) + 2);
     return all.slice(start, end).map(segment => segment.text).join('\n');
 }
+
+async function requestMadHongjinTwoLaneTranslations(segmented, speakerScopes, options = {}) {
+    const allSegments = Array.from(segmented?.segments || []);
+    const targetSegments = allSegments.filter(segment => (
+        segment.type === 'dialogue_candidate'
+        && speakerScopes?.[segment.id] === 'target_dialogue'
+    ));
+    const bodySegments = allSegments
+        .filter(segment => !targetSegments.includes(segment))
+        .map(segment => ({
+            ...segment,
+            outputScope: outputScopeForSegment(segment, speakerScopes),
+        }));
+    const bodySplitCount = Math.min(outputSplitCount(settings), Math.max(1, bodySegments.length));
+    const bodyChunks = bodySegments.length
+        ? splitMadFlashScopeSegments('narration', bodySegments, bodySplitCount)
+        : [];
+    const jobs = [];
+
+    if (targetSegments.length) {
+        jobs.push({ scope: 'target_dialogue', segments: targetSegments, chunkIndex: 0, chunkCount: 1 });
+    }
+    bodyChunks.forEach((segments, chunkIndex) => jobs.push({
+        scope: 'non_target_mixed',
+        segments,
+        chunkIndex,
+        chunkCount: bodyChunks.length,
+    }));
+
+    const results = await runWithConcurrency(
+        jobs,
+        scopedParallelRequestLimit(),
+        async job => {
+            if (job.scope === 'target_dialogue') {
+                return requestScopedGroupTranslations({
+                    segmented,
+                    scope: job.scope,
+                    segments: job.segments,
+                    options: {
+                        ...options,
+                        parallelRequest: true,
+                        stage: `${options.stage || 'output-translation'}:target-dialogue`,
+                    },
+                });
+            }
+
+            const prompt = buildScopedOutputPrompt({
+                segments: job.segments,
+                sourceContext: job.chunkCount > 1
+                    ? scopedSourceContext(segmented, job.segments)
+                    : segmented.protectedText,
+                settings,
+                oneTimeInstruction: options.oneTimeInstruction || '',
+                nameTokens: nameTokensForSegments(segmented, job.segments),
+                tuning: options.tuning || null,
+                scope: 'non_target_mixed',
+                speakerIdentity: options.speakerIdentity || {},
+            });
+            return requestSegments(prompt, job.segments, {
+                ...options,
+                parallelRequest: true,
+                splitRequest: job.chunkCount > 1,
+                splitBatchIndex: job.chunkIndex,
+                splitBatchCount: job.chunkCount,
+                stage: `${options.stage || 'output-translation'}:non-target${job.chunkCount > 1 ? `:chunk-${job.chunkIndex + 1}` : ''}`,
+            });
+        },
+    );
+
+    const translations = new Map();
+    for (const result of results) {
+        for (const [id, value] of result) translations.set(id, value);
+    }
+    return translations;
+}
+
 async function requestScopedOutputTranslations(segmented, speakerScopes, options = {}) {
-    // Split only the initial translation request. Existing speaker isolation,
-    // prompts, full-message planning, repair and quality checks remain intact.
-    // Mad Korean + Hong-jin deliberately keeps narration and every speaker in
-    // the same contiguous scene batch. speaker_scope travels with each row, so
-    // Flash gets the old strong scene context without leaking the TARGET voice.
-    // Therefore the user's 2-way setting once again means two primary calls.
+    // In the combined flavor mode, TARGET dialogue is one focused primary lane
+    // while narration, other speakers and tagged content form the body lane.
+    // Both lanes start together. The user's split setting divides only the body
+    // lane, so 1/2/3 split means 2/3/4 parallel primary calls when TARGET speaks.
+    if (
+        madKoreanExclusiveMode()
+        && settings.developerHongjinFlavorEnabled === true
+        && !options.splitBatchCount
+    ) {
+        return requestMadHongjinTwoLaneTranslations(segmented, speakerScopes, options);
+    }
+
     const splitCount = outputSplitCount(settings);
     if (splitCount > 1 && !options.splitBatchCount) {
         return runOutputBatches(segmented, splitCount, options, (segments, batchOptions) =>
@@ -4770,7 +4856,13 @@ function applyMadNarrationDeterministicRepairs(segmented, translations, speakerS
             .replace(/접이식\s*(?=[,.!?…。？！]|$)/gu, '접이식 의자')
             .replace(/무뚝뚝하지\s+않(?:은|게)\s+(?:어조|투|목소리)로/gu, '그리 매몰차지 않은 투로')
             .replace(/손가락이\s+폈다\s+오므라들었다\s+접혔다/gu, '손가락이 오므라들었다 펴지기를 반복했다')
-            .replace(/검붉은\s+흙(?:먼지|자국)?/gu, match => match.replace('검붉은', '검은'));
+            .replace(/검붉은\s+흙(?:먼지|자국)?/gu, match => match.replace('검붉은', '검은'))
+            .replace(/어깨(?:는|가)\s+정복(?:됐|되었)(?:고|다)/gu, match => (
+                /고$/u.test(match) ? '빠진 어깨는 제자리로 맞췄고' : '빠진 어깨는 제자리로 맞춰졌다'
+            ))
+            .replace(/장바구니(?:를|라도)?\s+읽(?:는|듯한|듯이)/gu, match => match.replace(/장바구니(?:를|라도)?/u, '장보기 목록을'))
+            .replace(/혈압\s*커프/gu, '혈압계')
+            .replace(/무표정하고\s+탐색하는\s+눈빛/gu, '무표정하게 재어 보는 눈빛');
 
         if (/\b(?:car|vehicle)\s+(?:wreck|crash)\b/iu.test(source)) {
             after = after.replace(/폐차\s*사고/gu, '교통사고');
@@ -5245,37 +5337,19 @@ function mergedNameLocks(explicitLocks = [], inferredLocks = []) {
     return merged;
 }
 
-function localMadHongjinIdentityNameLocks(source, speakerIdentity = {}) {
+function localFlavorIdentityNameLocks(source, speakerIdentity = {}) {
     if (settings.developerHongjinFlavorEnabled !== true) return [];
     const text = String(source || '');
-    const characterName = String(
-        speakerIdentity.characterName ?? speakerIdentity.sourceCharacterName ?? '',
-    ).trim();
-    const userName = String(
-        speakerIdentity.userName ?? speakerIdentity.sourceUserName ?? '',
-    ).trim();
     const locks = [];
-    const addMatches = (pattern, targetForMatch) => {
-        for (const match of text.matchAll(pattern)) {
-            const sourceName = String(match[0] || '').trim();
-            const target = String(targetForMatch(sourceName) || '').trim();
-            if (sourceName && target) locks.push({ source: sourceName, target });
-        }
+    const addIdentity = (sourceName, fixedName) => {
+        const sourceValue = String(sourceName || '').trim();
+        const fixedValue = String(fixedName || '').trim();
+        if (!sourceValue || !fixedValue || sourceValue === fixedValue) return;
+        const matcher = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegularExpression(sourceValue)}(?![\\p{L}\\p{N}])`, 'giu');
+        if (matcher.test(text)) locks.push({ source: sourceValue, target: fixedValue });
     };
-
-    // The preset voice always targets the current character. When that current
-    // character is Hong-jin, resolve his and Dam-eun's common Latin spellings
-    // locally instead of spending an AI call on a two-name matching task.
-    // Full-name source forms remain full names; given-name forms remain given
-    // names. Other target characters remain governed by speakerIdentity.
-    if (/(?:김)?홍진/u.test(characterName)) {
-        addMatches(/(?<![A-Za-z])(?:Kim[\s-]+)?Hong[\s-]?jin(?![A-Za-z])/giu, sourceName => (
-            /^Kim[\s-]+/iu.test(sourceName) ? '김홍진' : '홍진'
-        ));
-    }
-    if (/담은/u.test(userName)) {
-        addMatches(/(?<![A-Za-z])Dam[\s-]?eun(?![A-Za-z])/giu, () => '담은');
-    }
+    addIdentity(speakerIdentity.sourceCharacterName, speakerIdentity.characterName);
+    addIdentity(speakerIdentity.sourceUserName, speakerIdentity.userName);
     return mergedNameLocks([], locks);
 }
 
@@ -5347,7 +5421,7 @@ async function translateOutputText(source, options = {}) {
     const inferIdentityNames = typeof inferredPrimaryIdentityNameLocks === 'function'
         ? inferredPrimaryIdentityNameLocks
         : async () => [];
-    const localMadNameLocks = localMadHongjinIdentityNameLocks(source, initialSpeakerIdentity);
+    const localMadNameLocks = localFlavorIdentityNameLocks(source, initialSpeakerIdentity);
     const inferredNameLocks = localMadNameLocks.length
         ? localMadNameLocks
         : singlePassFlavorMode()
@@ -5661,7 +5735,7 @@ function outputSpeakerIdentity(message) {
 async function outputSpeakerIdentityForSource(source, message, options = {}) {
     const identity = outputSpeakerIdentity(message);
     const explicitNameLocks = normalizedCharacterNameLocks();
-    const localFlavorLocks = localMadHongjinIdentityNameLocks(source, identity);
+    const localFlavorLocks = localFlavorIdentityNameLocks(source, identity);
     const inferredNameLocks = localFlavorLocks.length
         ? localFlavorLocks
         : singlePassFlavorMode()
@@ -9212,9 +9286,10 @@ function selectionResolvedSpeakerScope(snapshot, speakerIdentity = {}) {
             segment.type === 'dialogue_candidate' && sourceTexts.has(String(segment.text || '').trim())
         ));
     }
-    return matched.length && matched.every(segment => localScopes[segment.id] === 'target_dialogue')
-        ? 'target_dialogue'
-        : 'other_dialogue';
+    const matchedScopes = matched.map(segment => localScopes[segment.id]);
+    if (matchedScopes.length && matchedScopes.every(scope => scope === 'target_dialogue')) return 'target_dialogue';
+    if (matchedScopes.length && matchedScopes.every(scope => scope === 'user_dialogue')) return 'user_dialogue';
+    return 'npc_dialogue';
 }
 
 function bundleStillCurrent(state = multiSelectionState) {

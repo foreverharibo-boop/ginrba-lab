@@ -63,8 +63,8 @@ assert.equal(result.requested, 0);
 assert.equal(result.changed, 2);
 assert.equal(requests, 0);
 
-// Combined Mad Korean + Hongjin keeps deterministic fixes but never adds a
-// third AI request after the mixed primary author pass.
+// Combined Mad Korean + Hongjin keeps deterministic fixes but never adds an
+// AI request after the parallel primary authoring lanes.
 env.settings.developerHongjinFlavorEnabled = true;
 const hongjinDeterministic = new Map([
     ['seg_0000', '깊고 갈리는 피로가 남았다.'],
@@ -109,6 +109,26 @@ const cleanResult = await helpers.runMadNarrationMicroAudit({
 });
 assert.equal(cleanResult.requested, 0);
 assert.equal(requests, 0);
+
+const calqueSegments = [
+    { id: 'shoulder', type: 'narration', outputScope: 'narration', text: 'Shoulder reduced.' },
+    { id: 'list', type: 'narration', outputScope: 'narration', text: 'He read it like a grocery list.' },
+    { id: 'cuff', type: 'narration', outputScope: 'narration', text: 'The medic checked a blood pressure cuff.' },
+    { id: 'look', type: 'narration', outputScope: 'narration', text: 'He gave him a measuring look.' },
+];
+const calqueTranslations = new Map([
+    ['shoulder', '어깨는 정복됐고 눈썹은 꿰맸다.'],
+    ['list', '장바구니를 읽는 것처럼 말했다.'],
+    ['cuff', '혈압 커프를 확인했다.'],
+    ['look', '무표정하고 탐색하는 눈빛이었다.'],
+]);
+assert.equal(helpers.applyMadNarrationDeterministicRepairs(
+    { segments: calqueSegments }, calqueTranslations, {},
+), 4);
+assert.equal(calqueTranslations.get('shoulder'), '빠진 어깨는 제자리로 맞췄고 눈썹은 꿰맸다.');
+assert.equal(calqueTranslations.get('list'), '장보기 목록을 읽는 것처럼 말했다.');
+assert.equal(calqueTranslations.get('cuff'), '혈압계를 확인했다.');
+assert.equal(calqueTranslations.get('look'), '무표정하게 재어 보는 눈빛이었다.');
 
 const prompt = buildMadNarrationMicroAuditPrompt({
     segments: candidates,

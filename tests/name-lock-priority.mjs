@@ -126,6 +126,26 @@ assert.equal(
     `${leadingNameToken.token}의 손이 움직였다.`,
 );
 const indexSource = fs.readFileSync(new URL('../index.js',import.meta.url),'utf8');
+const localLockStart = indexSource.indexOf('function mergedNameLocks(');
+const localLockEnd = indexSource.indexOf('async function inferredPrimaryIdentityNameLocks(', localLockStart);
+const localLockHelpers = Function(
+    'settings',
+    'escapeRegularExpression',
+    `${indexSource.slice(localLockStart, localLockEnd)}\nreturn {localFlavorIdentityNameLocks};`,
+)({ developerHongjinFlavorEnabled: true }, value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+assert.deepEqual(
+    localLockHelpers.localFlavorIdentityNameLocks(
+        'Alex Morgan waited beside Taylor Reed.',
+        {
+            sourceCharacterName: 'Alex Morgan', characterName: '알렉스 모건',
+            sourceUserName: 'Taylor Reed', userName: '테일러 리드',
+        },
+    ),
+    [
+        { source: 'Alex Morgan', target: '알렉스 모건' },
+        { source: 'Taylor Reed', target: '테일러 리드' },
+    ],
+);
 check(indexSource.includes('}, normalizedCharacterNameLocks(character));'), 'runtime passes character locks into output identity');
 check(indexSource.includes("stage: 'identity-name-fallback'"), 'runtime has cached fallback name planning stage');
 check(indexSource.includes('mergedNameLocks(explicitNameLocks, inferredNameLocks)'), 'saved name locks are merged before inferred names');

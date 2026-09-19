@@ -36,4 +36,4 @@ const indexSource = await import('node:fs').then(fs => fs.readFileSync(new URL('
 assert.match(indexSource, /skipped: 'primary-authoring-single-pass'/);
 assert.match(indexSource, /primary Mad-Korean request is already the final authoring pass/i);
 
-console.log('PASS: integrated author prompt remains available for Mad-only mode; Mad+Hongjin keeps its faster mixed primary batches with row-level speaker firewalls.');
+console.log('PASS: integrated author prompt remains available for Mad-only mode; Mad+Hongjin uses parallel TARGET/body primary lanes with speaker firewalls.');
