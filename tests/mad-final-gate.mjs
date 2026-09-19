@@ -29,6 +29,13 @@ function assertMadGate(prompt, dataMarker, label, { hongjin = false } = {}) {
     }
 }
 
+function assertRestoredHongjinOutputGate(prompt, dataMarker, label) {
+    assert.equal(prompt.split(marker).length - 1, 0, `${label}: restored primary path avoids a duplicate Mad final gate`);
+    assert.equal(prompt.split(hongjinMarker).length - 1, 1, `${label}: Hongjin gate count`);
+    assert.ok(prompt.lastIndexOf(hongjinMarker) > prompt.lastIndexOf(dataMarker), `${label}: Hongjin gate must follow source data`);
+    assert.match(prompt, /RESTORED 0\.5\.84 KIM HONG-JIN AUTHORING PATH/);
+}
+
 let routeChecks = 0;
 for (const mode of [
     {},
@@ -45,7 +52,12 @@ for (const mode of [
             developerHongjinProfanity: 'natural',
         };
 
-        assertMadGate(core.buildOutputPrompt(segmented, settings, '', identity), 'SEGMENTS', `output/${JSON.stringify(mode)}/${hongjin}`, { hongjin });
+        const outputPrompt = core.buildOutputPrompt(segmented, settings, '', identity);
+        if (hongjin) {
+            assertRestoredHongjinOutputGate(outputPrompt, 'SEGMENTS', `output/${JSON.stringify(mode)}/${hongjin}`);
+        } else {
+            assertMadGate(outputPrompt, 'SEGMENTS', `output/${JSON.stringify(mode)}/${hongjin}`);
+        }
 
         for (const scope of ['narration', 'target_dialogue', 'other_dialogue', 'tagged_content']) {
             const scoped = core.buildScopedOutputPrompt({

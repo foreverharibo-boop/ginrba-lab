@@ -26,10 +26,10 @@ const settings = {
 const source = 'The overpass ramp rose ahead. "Keep your voice down," he said.';
 const segmented = segmentSource(source);
 const outputPrompt = buildOutputPrompt(segmented, settings, '', identity);
-assert.match(outputPrompt, /MANDATORY BLANK-PAGE REWRITING/);
-assert.match(outputPrompt, /Destroy and discard every source word choice/);
-assert.match(outputPrompt, /write the passage again from a blank page/);
-assert.match(outputPrompt, /only content boundary/i);
+assert.match(outputPrompt, /RESTORED 0\.5\.84 KIM HONG-JIN AUTHORING PATH/);
+assert.match(outputPrompt, /SCENE-FIRST RECOMPOSITION/);
+assert.match(outputPrompt, /compose one final Korean realization per supplied id/i);
+assert.match(outputPrompt, /complete dedicated Kim Hong-jin voice pass/i);
 
 const targetRows = segmented.segments.filter(row => row.type === 'dialogue_candidate');
 const voicePrompt = buildHongjinVoiceRewritePrompt({

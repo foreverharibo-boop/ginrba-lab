@@ -28,10 +28,11 @@ assert.doesNotMatch(ordinaryCompactPrompt, /SHORT MANDATORY KOREAN REAUTHORING C
 const madPrompt = build(core, mad);
 const compactPrompt = build(core, madCompact);
 const extremePrompt = build(core, madExtreme);
-assert.match(madPrompt, /DEEPSEEK V4\.1 FLASH — KOREAN RECOMPOSITION/);
-assert.match(madPrompt, /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
-assert.match(compactPrompt, /DEEPSEEK V4\.1 FLASH — KOREAN RECOMPOSITION/);
-assert.match(extremePrompt, /DEEPSEEK V4\.1 FLASH — KOREAN RECOMPOSITION/);
+for (const prompt of [madPrompt, compactPrompt, extremePrompt]) {
+    assert.match(prompt, /RESTORED 0\.5\.84 KIM HONG-JIN AUTHORING PATH/);
+    assert.match(prompt, /DEEPSEEK V4\.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS/);
+    assert.doesNotMatch(prompt, /generate three|three different Kim Hong-jin utterances/iu);
+}
 assert.doesNotMatch(compactPrompt, /SHORT MANDATORY KOREAN REAUTHORING CONTRACT/);
 assert.doesNotMatch(extremePrompt, /SHORT MANDATORY KOREAN REAUTHORING CONTRACT/);
 assert.doesNotMatch(compactPrompt, /MAD KOREAN EXCLUSIVE — COMPACT EXPERIMENT/);
@@ -43,8 +44,8 @@ for (const prompt of [madPrompt, compactPrompt, extremePrompt]) {
     assert.match(prompt, /BANNED KOREAN WORDS/);
     assert.match(prompt, /김홍진/);
     assert.match(prompt, /담은/);
-    assert.match(prompt, /SOURCE-CONTENT FIREWALL/);
-    assert.match(prompt, /ANTI-TRANSLATION EXECUTION/);
+    assert.match(prompt, /MAD KOREAN EXCLUSIVE ENGINE — FACT-LOCKED KOREAN REAUTHORING/);
+    assert.match(prompt, /DEEPSEEK V4\.1 FLASH EXECUTION ORDER/);
 }
 
 // Developer compression remains gated, while the two user-facing flavor switches remain effective.

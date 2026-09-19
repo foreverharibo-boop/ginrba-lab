@@ -77,7 +77,11 @@ for (const mad of [false, true]) for (const hongjin of [false, true]) {
     assert.equal(core.buildOutputPrompt(segmented, { ...s, developerMode: true }, '', identity), ordinary);
     assert.equal(core.buildOutputPrompt(segmented, { ...s, developerExtremeCompressedPromptEnabled: true, developerCompressedPromptEnabled: true }, '', identity), ordinary);
     assert.equal(core.buildInputPrompt('안녕', s, 'male', identity), core.buildInputPrompt('안녕', defaults, 'male', identity));
-    assert.equal(ordinary.includes('DEEPSEEK V4.1 FLASH — KOREAN RECOMPOSITION'), mad);
+    assert.equal(
+        ordinary.includes('DEEPSEEK V4.1 FLASH — KOREAN RECOMPOSITION')
+            || ordinary.includes('RESTORED 0.5.84 KIM HONG-JIN AUTHORING PATH'),
+        mad,
+    );
     assert.equal(
         ordinary.includes('DEVELOPER KIM HONGJIN FLAVOR') || ordinary.includes('TARGET DIALOGUE ONLY — KIM HONG-JIN'),
         hongjin,

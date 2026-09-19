@@ -46,6 +46,8 @@ import {
     replaceOutsideProtected,
     repairCanonicalKoreanNameSuffixes,
     repairCanonicalKoreanVocatives,
+    repairDuplicateCanonicalIdentityNames,
+    repairLeadingLockedNameSubjectParticle,
     restoreProtected,
     resolveOutputSpeakerIdentity,
     segmentSource,
@@ -53,7 +55,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.119';
+const EXTENSION_VERSION = '0.5.120';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -5373,7 +5375,16 @@ async function translateOutputText(source, options = {}) {
             id,
             repairDialogueQuotationEnvelope(
                 repairKoreanParticleAlternatives(
-                    repairOutputIdentityNames(translation, speakerIdentity, sourceSegment, segmented.nameTokens || []),
+                    repairOutputIdentityNames(
+                        repairLeadingLockedNameSubjectParticle(
+                            translation,
+                            sourceSegment,
+                            segmented.nameTokens || [],
+                        ),
+                        speakerIdentity,
+                        sourceSegment,
+                        segmented.nameTokens || [],
+                    ),
                 ),
                 sourceSegment,
             ),
@@ -5463,7 +5474,16 @@ async function translateOutputText(source, options = {}) {
                 id,
                 repairDialogueQuotationEnvelope(
                     repairKoreanParticleAlternatives(
-                        repairOutputIdentityNames(translation, speakerIdentity, sourceSegment, segmented.nameTokens || []),
+                        repairOutputIdentityNames(
+                            repairLeadingLockedNameSubjectParticle(
+                                translation,
+                                sourceSegment,
+                                segmented.nameTokens || [],
+                            ),
+                            speakerIdentity,
+                            sourceSegment,
+                            segmented.nameTokens || [],
+                        ),
                     ),
                     sourceSegment,
                 ),
@@ -5485,7 +5505,10 @@ async function translateOutputText(source, options = {}) {
         console.warn('[긴르바 실험실] 일부 구간의 미번역 의심이 해소되지 않아 나머지 번역 결과를 우선 적용합니다.', untranslated);
     }
     const assembled = assembleTranslation(segmented, translations);
-    const result = repairStrictCanonicalIdentityNames(assembled, speakerIdentity);
+    const result = repairDuplicateCanonicalIdentityNames(
+        repairStrictCanonicalIdentityNames(assembled, speakerIdentity),
+        canonicalKoreanIdentityNames(speakerIdentity),
+    );
     if (!result.trim()) throw new Error('완성된 번역문이 비어 있습니다.');
     return {
         translation: result,

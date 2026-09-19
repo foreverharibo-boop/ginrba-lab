@@ -40,10 +40,15 @@ for (const [name, build] of Object.entries(builders)) {
         assert.match(prompt, /BANNED KOREAN WORDS/);
         checks += 6;
     } else {
-        assert.equal(prompt.split('DEEPSEEK V4.1 FLASH — KOREAN RECOMPOSITION').length - 1, 1, `${name}: one legacy contract`);
-        checks += 1;
+        assert.equal(prompt.split('RESTORED 0.5.84 KIM HONG-JIN AUTHORING PATH').length - 1, 1, `${name}: one restored 0.5.84 contract`);
+        assert.doesNotMatch(prompt, /generate three|three different Kim Hong-jin utterances/iu);
+        checks += 2;
     }
 }
+
+const outputPrompt = builders.output();
+assert.equal(outputPrompt.split('DEEPSEEK V4.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS').length - 1, 1);
+assert.match(outputPrompt, /speaker_scope is an absolute row-level firewall/);
 
 const narration = builders.narration();
 const target = builders.targetDialogue();

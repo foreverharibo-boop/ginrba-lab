@@ -105,8 +105,9 @@ const flashHongjinPrompt = core.buildOutputPrompt(segmented, {
     developerCompressedPromptEnabled: false,
     developerHongjinProfanity: 'natural',
 }, '', resolved);
-check(flashHongjinPrompt.indexOf('KIM HONG-JIN VOICE — FIRST EXECUTION GATE') < flashHongjinPrompt.indexOf('MANDATORY KOREAN NAME FORMS — LOCAL MECHANICAL GRAMMAR'), 'Hongjin voice execution gate precedes name grammar table');
-check(flashHongjinPrompt.includes('Name repair may edit only name/direct suffix'), 'early voice gate protects voice from later name repair');
+check(flashHongjinPrompt.includes('RESTORED 0.5.84 KIM HONG-JIN AUTHORING PATH'), 'Mad+Hongjin restores the proven 0.5.84 authoring path');
+check(flashHongjinPrompt.includes('DEEPSEEK V4.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS'), 'restored path executes the dedicated Hongjin voice pass');
+check(!/generate three|three different kim hong-jin utterances/iu.test(flashHongjinPrompt), 'restored path does not request hidden multi-candidate generation');
 assert.equal(core.repairCanonicalKoreanNameSuffixes('담은이의 후드와 담은이를 잡았다.', ['담은']), '담은의 후드와 담은을 잡았다.');
 assert.equal(core.repairCanonicalKoreanVocatives('"담은이아!" 그가 외쳤다.', { type: 'dialogue_candidate', text: '"Dam-eun!" he shouted.' }, ['담은']), '"담은아!" 그가 외쳤다.');
 assert.equal(core.repairCanonicalKoreanVocatives('"담은이야!" 그가 외쳤다.', { type: 'dialogue_candidate', text: '"Dam-eun!" he shouted.' }, ['담은']), '"담은아!" 그가 외쳤다.');
@@ -114,6 +115,16 @@ assert.equal(core.repairCanonicalKoreanVocatives('담은이 파이프를 휘둘�
 assert.equal(core.repairCanonicalKoreanNameSuffixes('신이가 담은이를 불렀다.', ['신', '담은']), '신이 담은을 불렀다.');
 assert.equal(core.repairCanonicalKoreanNameSuffixes('농담은이 먹혔다. 부담은이 컸다. 상담은은 끝났다.', ['담은']), '농담은이 먹혔다. 부담은이 컸다. 상담은은 끝났다.');
 assert.equal(core.repairCanonicalKoreanVocatives('"신이아!" 그녀가 외쳤다.', { type: 'dialogue_candidate', text: '"Shin!" she shouted.' }, ['신']), '"신아!" 그녀가 외쳤다.');
+assert.equal(core.repairDuplicateCanonicalIdentityNames('담은이담은 그를 따라왔다. 홍진홍진은 멈췄다.', ['담은', '홍진']), '담은이 그를 따라왔다. 홍진은 멈췄다.');
+const leadingNameToken = protectedData.nameTokens[0];
+assert.equal(
+    core.repairLeadingLockedNameSubjectParticle(`${leadingNameToken.token} 천장을 봤다.`, { type: 'narration', text: `${leadingNameToken.token} stared at the ceiling.` }, [leadingNameToken]),
+    `${leadingNameToken.token}이 천장을 봤다.`,
+);
+assert.equal(
+    core.repairLeadingLockedNameSubjectParticle(`${leadingNameToken.token}의 손이 움직였다.`, { type: 'narration', text: `${leadingNameToken.token}'s hand moved.` }, [leadingNameToken]),
+    `${leadingNameToken.token}의 손이 움직였다.`,
+);
 const indexSource = fs.readFileSync(new URL('../index.js',import.meta.url),'utf8');
 check(indexSource.includes('}, normalizedCharacterNameLocks(character));'), 'runtime passes character locks into output identity');
 check(indexSource.includes("stage: 'identity-name-fallback'"), 'runtime has cached fallback name planning stage');

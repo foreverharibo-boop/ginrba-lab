@@ -1,7 +1,7 @@
 {
   "name": "ginrba-lab",
   "display_name": "긴르바 실험실",
-  "version": "0.5.119",
+  "version": "0.5.120",
   "description": "DeepSeek V4.1 Flash용 자연 번역·한국어 재구성·캐릭터 보이스 분리형 번역 확장",
   "author": "담은",
   "js": "index.js",
