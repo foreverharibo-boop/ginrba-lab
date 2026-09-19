@@ -49,15 +49,13 @@ const run=route(settings,()=>[],segmentSource,minimalOutputEnabled,translateMini
 calls=[];await run('He waited.');assert.equal(calls.length,1);
 settings.developerMode=false;await assert.rejects(run('He waited.'),/NORMAL_PATH/);settings.developerMode=true;
 settings.developerMinimalPromptEnabled=false;await assert.rejects(run('He waited.'),/NORMAL_PATH/);settings.developerMinimalPromptEnabled=true;
-// Protect-token repair stays minimal and only retries the affected target.
+// Protect-token repair stays fully local and never issues a repair request.
 let attempts=0;const damaged=segmentSource('Hong-jin waited.\n\nShe nodded.',[{source:'Hong-jin',target:'홍진'}]);
 await translateMinimalOutput(damaged,settings,{}, {buildSourceMap,requestSegments:async(prompt,segments,opts)=>{
  attempts++;assert.ok(!prompt.includes('HONGJIN FLAVOR'));
- if(opts.stage!=='protected-token-repair')return new Map(segments.map(s=>[s.id,'기다렸다.']));
- assert.equal(opts.stage,'protected-token-repair');assert.equal(segments.length,1);
- return new Map(segments.map(s=>[s.id,translated(s)]));
-}});assert.equal(attempts,3);
-attempts=0;await assert.rejects(translateMinimalOutput(damaged,settings,{}, {buildSourceMap,requestSegments:async(_p,ss)=>{attempts++;return new Map(ss.map(s=>[s.id,'누락']));}}),/보호 요소/);assert.equal(attempts,7);
+ assert.notEqual(opts.stage,'protected-token-repair');
+ return new Map(segments.map(s=>[s.id,'기다렸다.']));
+}});assert.equal(attempts,2);
 const controller=new AbortController();controller.abort();calls=[];
 await assert.rejects(translateMinimalOutput(segmented,settings,{signal:controller.signal},{requestSegments,buildSourceMap}),{name:'AbortError'});assert.equal(calls.length,0);
 // Existing local newline cleanup and offsets still agree after assembly.

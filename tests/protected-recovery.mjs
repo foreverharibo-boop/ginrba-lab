@@ -26,29 +26,21 @@ const env={settings, document:{querySelector:()=>button}, sanitizeDebugValue, pr
     createDebugDiagnostic:(stage,error,displayMessage)=>({stage,displayMessage}),
 };
 const logs=Function(...Object.keys(env),'let lastDebugDiagnostic=null;\n'+slice('function storeDebugDiagnostic(', 'function createDebugDiagnostic(')+ '\nreturn {recordProtectedRecovery,finishProtectedRecovery,clear:()=>{lastDebugDiagnostic=null;},latest:()=>lastDebugDiagnostic,replace:storeDebugDiagnostic};')(...Object.values(env));
-let calls=0, action=()=>{translations.set('s1',`${a} opened ${b}`);now+=4900;};
-const deps={...env,...logs,findProtectedTokenIntegrityProblems,repairProtectedTokenIntegrityLocally,buildProtectedTokenRepairPrompt:()=>{},isAbort:e=>e.name==='AbortError',
-    madKoreanExclusiveMode:()=>false,
-    repairSegmentsByOutputScope:async opts=>{calls++;assert.equal(opts.stage,'protected-token-repair');await action();}};
+let calls=0;
+const deps={...env,...logs,findProtectedTokenIntegrityProblems,repairProtectedTokenIntegrityLocally};
 const repair=Function(...Object.keys(deps),slice('async function repairProtectedTokenIntegrity(', 'function normalizedNumberTokens(')+'\nreturn repairProtectedTokenIntegrity;')(...Object.values(deps));
 await repair(segmented,translations,{stage:'output-retranslation'});
-assert.equal(calls,1);assert.equal(button.disabled,false);
-assert.equal(logs.latest().protectedRecovery.status,'복구 완료');
-assert.equal(logs.latest().protectedRecovery.elapsedSeconds,4.9);
+assert.equal(calls,0);assert.equal(button.disabled,false);
+assert.equal(logs.latest().protectedRecovery.status,'내부 복구 완료');
+assert.equal(logs.latest().protectedRecovery.elapsedSeconds,0);
 assert.equal(logs.latest().protectedRecovery.remaining.problemSegmentCount,0);
 assert.match(logs.latest().protectedRecovery.before.segments[0].translationBeforeRepair,/그녀/);
 assert.equal(JSON.parse(JSON.stringify(logs.latest())).protectedRecovery.before.segments[0].marks[0].missing,1);
-await repair(segmented,translations);assert.equal(calls,1,'valid tokens need no request');
+await repair(segmented,translations);assert.equal(calls,0,'valid tokens need no request');
 settings.debugMode=false;logs.clear();translations.set('s1','bad');await repair(segmented,translations);assert.equal(logs.latest(),null);
-settings.debugMode=true;translations.set('s1','bad');action=()=>{settings.debugMode=false;logs.clear();settings.debugMode=true;translations.set('s1',`${a}${b}`);};
-await repair(segmented,translations);assert.equal(logs.latest(),null,'OFF/on cannot resurrect log');
-translations.set('s1','bad');action=()=>{logs.replace({newer:true});translations.set('s1',`${a}${b}`);};
-await repair(segmented,translations);assert.deepEqual(logs.latest(),{newer:true});
-translations.set('s1','bad');calls=0;action=()=>{now+=100;};
-await assert.rejects(repair(segmented,translations),e=>e.verbaDeepProtectedRecovery.status==='복구 실패');
-assert.equal(calls,5);assert.equal(logs.latest().protectedRecovery.attempts,5);
-action=()=>{throw Object.assign(new Error('cancel'),{name:'AbortError'});};
-await assert.rejects(repair(segmented,translations),e=>e.verbaDeepProtectedRecovery.status==='취소됨');
+settings.debugMode=true;translations.set('s1','bad');await repair(segmented,translations);
+assert.equal(calls,0,'all modes use local-only protected recovery');
+assert.equal(logs.latest().protectedRecovery.attempts,0);
 
 // The real v0.5.120 failure mode: the model removed NAME placeholders but
 // already wrote each exact locked Korean name. This must be restored locally
@@ -104,4 +96,4 @@ assert.match(forced.get('s1'), /@@VERBA_DEEP_0000@@/);
 const broken={...deps,recordProtectedRecovery:logs.recordProtectedRecovery,protectedRecoverySnapshot:()=>{throw Error('diagnostic failed');}};
 const badLogs=Function(...Object.keys(broken),'let lastDebugDiagnostic=null;\n'+slice('function recordProtectedRecovery(', 'function createDebugDiagnostic(')+'\nreturn recordProtectedRecovery;')(...Object.values(broken));
 assert.equal(badLogs(invalid,segmented,translations,{}),null);
-console.log('PASS protected recovery: exact missing/excess counts, moved marks, mappings, redaction/limits, successful log/copy data, no-op, OFF/reset, newer-log guard, 5-attempt failure, cancellation, diagnostic isolation (mock requests).');
+console.log('PASS protected recovery: exact missing/excess counts, moved marks, mappings, redaction/limits, local-only recovery in all modes, zero AI requests, no-op, OFF/reset and diagnostic isolation.');

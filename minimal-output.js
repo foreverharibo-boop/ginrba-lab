@@ -1,5 +1,5 @@
 import { outputSplitCount, runOutputBatches } from './output-splitting.js';
-import { assembleTranslation, findProtectedTokenIntegrityProblems, normalizeStructuredMetadataTranslation } from './core.js';
+import { assembleTranslation, findProtectedTokenIntegrityProblems, normalizeStructuredMetadataTranslation, repairProtectedTokenIntegrityLocally } from './core.js';
 
 export function minimalOutputEnabled(settings = {}) {
     return settings.developerMode === true && settings.developerMinimalPromptEnabled === true;
@@ -23,24 +23,23 @@ export async function translateMinimalOutput(segmented, settings, options, { req
     const config = { developerMinimalPrompt: settings.developerMinimalPrompt };
     const oneTime = String(options.oneTimeInstruction || '');
     const translations = await runOutputBatches(segmented, outputSplitCount(settings), options, async (segments, batchOptions) => {
-        const request = (targets, repair = false) => {
+        const request = targets => {
             batchOptions.signal.throwIfAborted();
-            let prompt = buildMinimalOutputPrompt(targets, config, segmented.nameTokens || [], oneTime);
-            if (repair) prompt += '\nPrevious result damaged protected tokens. Retranslate these targets and preserve each original token exactly once.';
+            const prompt = buildMinimalOutputPrompt(targets, config, segmented.nameTokens || [], oneTime);
             return requestSegments(prompt, targets, {
                 ...batchOptions,
-                stage: repair ? 'protected-token-repair' : options.stage || 'output-translation',
+                stage: options.stage || 'output-translation',
             });
         };
         const translated = await request(segments);
-        for (let attempt = 0; attempt < 5; attempt++) {
-            const invalid = findProtectedTokenIntegrityProblems(segments, translated);
-            if (!invalid.length) break;
-            const repaired = await request(invalid, true);
-            for (const segment of invalid) translated.set(segment.id, repaired.get(segment.id));
-        }
-        if (findProtectedTokenIntegrityProblems(segments, translated).length) {
-            throw new Error('보호 요소 자동 복구에 실패했습니다. 다시 번역해 주세요.');
+        const scoped = {
+            ...segmented,
+            segments,
+            nameTokens: (segmented.nameTokens || []).filter(row => segments.some(segment => String(segment.text || '').includes(row.token))),
+        };
+        const repaired = repairProtectedTokenIntegrityLocally(scoped, translated, { force: true });
+        if (repaired.remaining.length || findProtectedTokenIntegrityProblems(segments, translated).length) {
+            throw new Error('보호 요소를 내부에서 복구하지 못했습니다. 다시 번역해 주세요.');
         }
         return translated;
     });

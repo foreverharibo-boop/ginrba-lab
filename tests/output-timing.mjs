@@ -87,6 +87,7 @@ const env = {
     fallbackEligibleError: () => true, transientError: () => false, retryAfterMs: () => 0,
     errorText: e => e.message, profileDisplayName: id => id, notifyFallbackUsed: () => {},
     serverRetryStates: new Map(), updateServerRetryIndicator: () => {},
+    applyCustomTranslatorPrompt: prompt => prompt,
     wait: async ms => { time += ms; }, console: { warn() {} },
 };
 const functions = slice('async function sendProfileRequest(', 'function fallbackEligibleError(')

@@ -44,7 +44,12 @@ assert.doesNotMatch(index, /throw new Error\(`김홍진 보이스 강제 재작�
 
 assert.doesNotMatch(index, /needsHongjinAttribution/);
 assert.match(index, /localFlavorIdentityNameLocks/);
-assert.match(index, /const needsSpeakerIsolation = Boolean\(\s*!madKoreanExclusiveMode\(\)/s);
+const classifier = index.slice(
+    index.indexOf('async function classifyOutputDialogueSpeakers('),
+    index.indexOf('async function requestScopedGroupTranslations('),
+);
+assert.match(classifier, /inferLocalTargetDialogueScopes\(segmented, speakerIdentity\)/);
+assert.doesNotMatch(classifier, /requestSegments|speaker-attribution/);
 assert.match(index, /hongjin-voice-scene-retry/);
 assert.match(index, /function hongjinSceneVoiceFailure\(/);
 assert.doesNotMatch(index, /hongjin-voice-enforced-retry-/);

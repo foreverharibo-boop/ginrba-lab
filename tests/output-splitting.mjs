@@ -32,7 +32,7 @@ const env={settings,outputSplitCount,runOutputBatches,requestSegments,
  buildOutputPrompt:core.buildOutputPrompt,buildScopedOutputPrompt:core.buildScopedOutputPrompt,
  madKoreanExclusiveMode:()=>settings.developerMadKoreanOutputEnabled===true,
  isAbort:(error,signal)=>signal?.aborted||error.name==='AbortError',scopedParallelRequestLimit:()=>2,console};
-const routingCode=between('function outputScopeForSegment(', 'function speakerAttributionCacheKey(')
+const routingCode=between('function outputScopeForSegment(', 'async function classifyOutputDialogueSpeakers(')
  +between('async function runWithConcurrency(', 'function setBoundedCache(')
  +between('async function requestScopedGroupTranslations(', 'function normalizeTaggedOutputTranslations(');
 const route=Function(...Object.keys(env),routingCode+'\nreturn requestScopedOutputTranslations;')(...Object.values(env));
