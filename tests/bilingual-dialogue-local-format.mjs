@@ -78,6 +78,49 @@ assert.equal(
     '*그는 망설였다.*\n\n"Dana... (다나...)"',
 );
 
+// If the model already obeys the bilingual instruction, the local fallback
+// must not wrap the same source around it a second time. Name protection means
+// both halves can temporarily contain the same token before final restoration.
+const danaAlreadyBilingual = `"${danaOnly.nameTokens[0].token}… (${danaOnly.nameTokens[0].token}…)"`;
+assert.equal(
+    ensureBilingualDialogueFormat(
+        danaDialogue,
+        danaAlreadyBilingual,
+        settings,
+        null,
+        danaOnly.nameTokens,
+        danaOnly.tokens,
+    ),
+    `"Dana… (${danaOnly.nameTokens[0].token}…)"`,
+);
+assert.equal(
+    assembleTranslation(danaOnly, new Map([[
+        danaDialogue.id,
+        ensureBilingualDialogueFormat(
+            danaDialogue,
+            danaAlreadyBilingual,
+            settings,
+            null,
+            danaOnly.nameTokens,
+            danaOnly.tokens,
+        ),
+    ]])),
+    '*그는 망설였다.*\n\n"Dana… (다나…)"',
+);
+
+const danaSourceAlreadyBilingual = `"Dana… (${danaOnly.nameTokens[0].token}…)"`;
+assert.equal(
+    ensureBilingualDialogueFormat(
+        danaDialogue,
+        danaSourceAlreadyBilingual,
+        settings,
+        null,
+        danaOnly.nameTokens,
+        danaOnly.tokens,
+    ),
+    danaSourceAlreadyBilingual,
+);
+
 const speakerOnly = {
     ...settings,
     allDialoguePromptEnabled: false,

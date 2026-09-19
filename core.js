@@ -275,8 +275,89 @@ function unchangedLatinPhrase(source, translation) {
     return '';
 }
 
-function looksLikeBilingualDialogue(segment, translation) {
+function restoreBilingualDetectionTokens(value, nameTokens = [], protectedTokens = [], nameMode = 'source') {
+    let restored = String(value || '');
+    for (const entry of nameTokens || []) {
+        const replacement = nameMode === 'target'
+            ? String(entry?.value || entry?.source || '')
+            : String(entry?.source || entry?.value || '');
+        restored = restored.split(String(entry?.token || '')).join(replacement);
+    }
+    for (const entry of protectedTokens || []) {
+        restored = restored.split(String(entry?.token || '')).join(String(entry?.value || ''));
+    }
+    return restored;
+}
+
+function normalizedDialogueSurface(value) {
+    return String(value || '')
+        .normalize('NFKC')
+        .toLocaleLowerCase()
+        .replace(/…/gu, '...')
+        .replace(/[’‘]/gu, "'")
+        .replace(/\s+/gu, ' ')
+        .trim();
+}
+
+function trailingParentheticalParts(value) {
+    const text = String(value || '').trim();
+    const pairs = [['(', ')'], ['（', '）'], ['[', ']'], ['【', '】']];
+    for (const [open, close] of pairs) {
+        if (!text.endsWith(close)) continue;
+        const openAt = text.lastIndexOf(open);
+        if (openAt <= 0) continue;
+        const left = text.slice(0, openAt).trim();
+        const right = text.slice(openAt + open.length, text.length - close.length).trim();
+        if (left && right) return { left, right, open, close };
+    }
+    return null;
+}
+
+function canonicalizeExactBilingualDialogue(segment, translation, nameTokens = [], protectedTokens = []) {
+    if (segment?.type !== 'dialogue_candidate') return null;
+    const sourceEnvelope = dialogueEnvelope(segment.text);
+    const translationEnvelope = dialogueEnvelope(translation);
+    const bilingualParts = trailingParentheticalParts(translationEnvelope.body);
+    if (!bilingualParts) return null;
+
+    const expectedSource = restoreBilingualDetectionTokens(
+        sourceEnvelope.body,
+        nameTokens,
+        protectedTokens,
+        'source',
+    );
+    const actualSource = restoreBilingualDetectionTokens(
+        bilingualParts.left,
+        nameTokens,
+        protectedTokens,
+        'source',
+    );
+    const koreanHalf = restoreBilingualDetectionTokens(
+        bilingualParts.right,
+        nameTokens,
+        protectedTokens,
+        'target',
+    );
+    if (
+        normalizedDialogueSurface(actualSource) !== normalizedDialogueSurface(expectedSource)
+        || !/[가-힣]/u.test(validationText(koreanHalf))
+    ) return null;
+
+    // The model can copy a protected NAME token into both halves. Materialize
+    // only the English half from its source spelling now; the ordinary final
+    // restoration will still materialize the Korean half from the target name.
+    return `${translationEnvelope.leading}${translationEnvelope.open}${actualSource} ${bilingualParts.open}${bilingualParts.right}${bilingualParts.close}${translationEnvelope.close}${translationEnvelope.trailing}`;
+}
+
+function looksLikeBilingualDialogue(segment, translation, nameTokens = [], protectedTokens = []) {
     if (segment?.type !== 'dialogue_candidate') return false;
+
+    // Short dialogue made only of a registered name has fewer than two Latin
+    // words, so the ordinary word-run heuristic below cannot recognize it.
+    // Compare its exact left half with the protected source and validate the
+    // parenthesized right half after restoring name tokens in target form.
+    if (canonicalizeExactBilingualDialogue(segment, translation, nameTokens, protectedTokens) !== null) return true;
+
     const sourceWords = normalizedLatinWords(segment.text);
     const targetWords = normalizedLatinWords(translation);
     if (sourceWords.length < 2 || targetWords.length < sourceWords.length) return false;
@@ -327,7 +408,9 @@ export function ensureBilingualDialogueFormat(
 ) {
     const result = String(translation || '');
     if (segment?.type !== 'dialogue_candidate' || !bilingualDialogueRequested(settings)) return result;
-    if (looksLikeBilingualDialogue(segment, result)) return result;
+    const canonicalBilingual = canonicalizeExactBilingualDialogue(segment, result, nameTokens, protectedTokens);
+    if (canonicalBilingual !== null) return canonicalBilingual;
+    if (looksLikeBilingualDialogue(segment, result, nameTokens, protectedTokens)) return result;
 
     const translatedEnvelope = dialogueEnvelope(result);
     const korean = stripSingleParentheticalEnvelope(translatedEnvelope.body);
