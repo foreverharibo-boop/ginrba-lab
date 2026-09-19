@@ -59,9 +59,9 @@ assert.ok(candidates.every(row => row.localAuditReasons.length));
 const result = await helpers.runMadNarrationMicroAudit({
     segmented: { segments }, translations, speakerScopes: {}, speakerIdentity: identity, options: {},
 });
-assert.equal(result.requested, 1);
-assert.equal(result.changed, 3);
-assert.equal(requests, 1);
+assert.equal(result.requested, 0);
+assert.equal(result.changed, 2);
+assert.equal(requests, 0);
 
 // Combined Mad Korean + Hongjin keeps deterministic fixes but never adds a
 // third AI request after the mixed primary author pass.
@@ -78,8 +78,8 @@ const hongjinResult = await helpers.runMadNarrationMicroAudit({
 });
 assert.equal(hongjinResult.requested, 0);
 assert.equal(hongjinResult.changed, 1);
-assert.equal(requests, 1);
-assert.equal(lastCandidates.length, 1);
+assert.equal(requests, 0);
+assert.equal(lastCandidates.length, 0);
 assert.equal(translations.get('seg_0000'), '무겁고 지독한 피로가 남았다.');
 
 const deterministicOnly = new Map([
@@ -95,7 +95,7 @@ const deterministicResult = await helpers.runMadNarrationMicroAudit({
 assert.equal(deterministicResult.requested, 0);
 assert.equal(deterministicResult.changed, 1);
 assert.equal(deterministicOnly.get('seg_0000'), '무겁고 지독한 피로가 남았다.');
-assert.equal(requests, 1);
+assert.equal(requests, 0);
 
 const cleanTranslations = new Map([
     ['seg_0003', '밖에서는 야영지가 여전히 움직이고 있었다.'],
@@ -108,7 +108,7 @@ const cleanResult = await helpers.runMadNarrationMicroAudit({
     options: {},
 });
 assert.equal(cleanResult.requested, 0);
-assert.equal(requests, 1);
+assert.equal(requests, 0);
 
 const prompt = buildMadNarrationMicroAuditPrompt({
     segments: candidates,

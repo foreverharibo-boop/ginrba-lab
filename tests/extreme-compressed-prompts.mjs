@@ -75,11 +75,11 @@ lacks(builders.input(standardSettings), 'GLOBAL_SENTINEL');
 
 const madSettings = { ...standardSettings, developerMadKoreanOutputEnabled: true, developerHongjinFlavorEnabled: true };
 const madPrompt = builders.full(madSettings);
-has(madPrompt, 'RESTORED 0.5.84 KIM HONG-JIN AUTHORING PATH');
-has(madPrompt, 'DEEPSEEK V4.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS');
+has(madPrompt, 'TARGET CHARACTER AUTHORING PATH');
+has(madPrompt, 'DEEPSEEK V4.1 FLASH — CURRENT TARGET CHARACTER DIALOGUE VOICE PASS');
 has(madPrompt, 'MAD KOREAN EXCLUSIVE ENGINE — FACT-LOCKED KOREAN REAUTHORING');
 has(madPrompt, 'DEEPSEEK V4.1 FLASH EXECUTION ORDER');
-has(madPrompt, 'MUST still sound like himself');
+has(madPrompt, 'MUST still sound like the established character');
 has(madPrompt, 'direct no curse at USER');
 has(madPrompt, 'USER-DIRECTED PROFANITY GUARD');
 has(madPrompt, 'NON-NEGOTIABLE ENGINE SAFETY — NOT STYLE PROMPTS');
@@ -88,9 +88,9 @@ for (const value of ['GLOBAL_SENTINEL', 'ALL_DIALOGUE_SENTINEL', 'TARGET_DIALOGU
 assert.equal(count(madPrompt, 'TOP PRIORITY — NO MISOGYNY'), 1); checks += 1;
 assert.ok(count(madPrompt, 'USER-DIRECTED PROFANITY GUARD') >= 1); checks += 1;
 lacks(madPrompt, 'generate three');
-lacks(builders.narration(madSettings), 'KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT');
+lacks(builders.narration(madSettings), 'CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT');
 has(builders.narration(madSettings), 'MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION');
-has(builders.target(madSettings), 'KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT');
+has(builders.target(madSettings), 'CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT');
 has(builders.target(madSettings), 'HIGH BOUNDARIES' .replace('HIGH ', 'HARD '));
 
 for (const compressed of [false, true]) {
@@ -156,7 +156,7 @@ for (const gender of ['male', 'female', 'unknown']) {
     for (const scope of ['mixed', 'narration', 'target_dialogue', 'other_dialogue']) {
         const p = scoped({ developerMadKoreanOutputEnabled: true, developerHongjinFlavorEnabled: true, developerHongjinOppaFrequency: 'often' }, scope, null, { ...identity, characterGender: gender });
         has(p, `gender=${JSON.stringify(gender)}`, `Mad identity gender/${scope}`);
-        if (scope === 'target_dialogue') has(p, 'KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT');
+        if (scope === 'target_dialogue') has(p, 'CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT');
     }
 }
 for (const mad of [false, true]) {

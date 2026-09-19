@@ -20,7 +20,7 @@ const settings = {
 const build = scope => core.buildScopedOutputPrompt({ segments, sourceContext: '', settings, scope, speakerIdentity: identity });
 const prompt = build('target_dialogue');
 
-assert.equal(prompt.split('KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT').length - 1, 1);
+assert.equal(prompt.split('CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT').length - 1, 1);
 assert.equal(prompt.split('MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION').length - 1, 1);
 assert.match(prompt, /Discard source-language wording, clause order and sentence rhythm/);
 assert.match(prompt, /original contemporary Korean speech/);
@@ -51,7 +51,7 @@ assert.match(mixedPrompt, /never repeat the same curse root in adjacent TARGET u
 assert.match(mixedPrompt, /speaker_scope is an absolute row-level firewall/);
 
 for (const scope of ['narration', 'other_dialogue', 'tagged_content']) {
-    assert.doesNotMatch(build(scope), /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+    assert.doesNotMatch(build(scope), /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
 }
 
 const off = core.buildScopedOutputPrompt({
@@ -61,7 +61,7 @@ const off = core.buildScopedOutputPrompt({
     scope: 'target_dialogue',
     speakerIdentity: identity,
 });
-assert.doesNotMatch(off, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
-assert.doesNotMatch(core.buildInputPrompt('안녕', settings, 'male', identity), /TARGET DIALOGUE ONLY — KIM HONG-JIN/);
+assert.doesNotMatch(off, /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
+assert.doesNotMatch(core.buildInputPrompt('안녕', settings, 'male', identity), /TARGET DIALOGUE ONLY — CURRENT TARGET CHARACTER/);
 
 console.log('PASS: Flash-optimized Kim Hong-jin voice is mandatory, varied, settings-aware, and restricted to confirmed target dialogue.');

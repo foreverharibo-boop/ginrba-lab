@@ -29,8 +29,8 @@ const madPrompt = build(core, mad);
 const compactPrompt = build(core, madCompact);
 const extremePrompt = build(core, madExtreme);
 for (const prompt of [madPrompt, compactPrompt, extremePrompt]) {
-    assert.match(prompt, /RESTORED 0\.5\.84 KIM HONG-JIN AUTHORING PATH/);
-    assert.match(prompt, /DEEPSEEK V4\.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS/);
+    assert.match(prompt, /TARGET CHARACTER AUTHORING PATH/);
+    assert.match(prompt, /DEEPSEEK V4\.1 FLASH — CURRENT TARGET CHARACTER DIALOGUE VOICE PASS/);
     assert.doesNotMatch(prompt, /generate three|three different Kim Hong-jin utterances/iu);
 }
 assert.doesNotMatch(compactPrompt, /SHORT MANDATORY KOREAN REAUTHORING CONTRACT/);
@@ -40,7 +40,7 @@ assert.doesNotMatch(extremePrompt, /MAD KOREAN — ULTRA-COMPACT/);
 
 for (const prompt of [madPrompt, compactPrompt, extremePrompt]) {
     assert.equal(prompt.split('TOP PRIORITY — NO MISOGYNY').length - 1, 1);
-    assert.match(prompt, /KIM HONG-JIN|Kim Hong-jin/);
+    assert.match(prompt, /CURRENT TARGET CHARACTER/);
     assert.match(prompt, /BANNED KOREAN WORDS/);
     assert.match(prompt, /김홍진/);
     assert.match(prompt, /담은/);

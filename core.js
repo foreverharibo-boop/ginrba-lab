@@ -1361,12 +1361,80 @@ function replaceLiteralRanges(value, ranges, replacements) {
  * never invents, moves, translates, or chooses a name. Ambiguous cases and
  * non-name structure/code tokens remain for the existing AI fallback.
  */
-export function repairProtectedTokenIntegrityLocally(segmented, translations) {
+function nearestProtectedInsertionIndex(value, approximateIndex) {
+    const text = String(value || '');
+    const protectedRanges = [...text.matchAll(/@@VERBA_DEEP_(?:NAME_)?\d{4}@@/g)]
+        .map(match => ({ start: match.index, end: match.index + match[0].length }));
+    const outsideProtectedToken = index => !protectedRanges.some(range => (
+        index > range.start && index < range.end
+    ));
+    const rawTarget = Math.max(0, Math.min(text.length, Number(approximateIndex) || 0));
+    const containingRange = protectedRanges.find(range => rawTarget > range.start && rawTarget < range.end);
+    const target = containingRange
+        ? (rawTarget - containingRange.start <= containingRange.end - rawTarget
+            ? containingRange.start
+            : containingRange.end)
+        : rawTarget;
+    if (target === 0 || target === text.length) return target;
+    const boundary = index => (
+        outsideProtectedToken(index)
+        && (
+            index <= 0
+            || index >= text.length
+            || /[\s\p{P}\p{S}]/u.test(text[index - 1] || '')
+            || /[\s\p{P}\p{S}]/u.test(text[index] || '')
+        )
+    );
+    if (boundary(target)) return target;
+    for (let distance = 1; distance <= Math.min(120, text.length); distance += 1) {
+        const right = target + distance;
+        const left = target - distance;
+        if (right <= text.length && boundary(right)) return right;
+        if (left >= 0 && boundary(left)) return left;
+    }
+    return target;
+}
+
+function insertMissingProtectedTokenBySourcePosition(source, translation, token) {
+    const sourceText = String(source || '');
+    const output = String(translation || '');
+    const sourceIndex = Math.max(0, sourceText.indexOf(String(token || '')));
+    const stripMarkers = value => String(value || '').replace(/@@VERBA_DEEP_(?:NAME_)?\d{4}@@/g, '');
+    const visibleSource = stripMarkers(sourceText);
+    const visibleBeforeToken = stripMarkers(sourceText.slice(0, sourceIndex));
+    const ratio = visibleSource.length
+        ? visibleBeforeToken.length / visibleSource.length
+        : (sourceText.length ? sourceIndex / sourceText.length : 1);
+    const insertionIndex = nearestProtectedInsertionIndex(output, Math.round(output.length * ratio));
+    const needsLeadingSpace = insertionIndex > 0
+        && /[\p{L}\p{N}]/u.test(output[insertionIndex - 1] || '')
+        && /[\p{L}\p{N}]/u.test(String(token || '')[0] || '');
+    const needsTrailingSpace = insertionIndex < output.length
+        && /[\p{L}\p{N}]/u.test(output[insertionIndex] || '')
+        && /[\p{L}\p{N}]/u.test(String(token || '').slice(-1) || '');
+    return output.slice(0, insertionIndex)
+        + (needsLeadingSpace ? ' ' : '')
+        + String(token || '')
+        + (needsTrailingSpace ? ' ' : '')
+        + output.slice(insertionIndex);
+}
+
+/**
+ * `force` is used by the Mad-Korean single-pass path. It never asks the model
+ * to repair its own answer: exact visible values are rebound first, then any
+ * still-missing opaque marker is restored at the closest source-relative text
+ * boundary. This may be less elegant than an AI rewrite, but it preserves the
+ * user's structure and keeps post-translation model calls at zero.
+ */
+export function repairProtectedTokenIntegrityLocally(segmented, translations, { force = false } = {}) {
     const map = translations instanceof Map ? translations : new Map(Object.entries(translations || {}));
     const nameEntries = new Map((segmented?.nameTokens || []).map(entry => [String(entry?.token || ''), entry]));
+    const protectedEntries = new Map((segmented?.tokens || []).map(entry => [String(entry?.token || ''), entry]));
     const changedSegmentIds = [];
     let restoredNameTokens = 0;
     let normalizedExcessNameTokens = 0;
+    let restoredProtectedTokens = 0;
+    let normalizedExcessProtectedTokens = 0;
 
     for (const segment of segmented?.segments || []) {
         const original = String(map.get(segment.id) || '');
@@ -1383,6 +1451,20 @@ export function repairProtectedTokenIntegrityLocally(segmented, translations) {
             if (got <= wanted) continue;
             next = replaceExcessNameTokens(next, token, wanted, entry?.value);
             normalizedExcessNameTokens += got - wanted;
+        }
+
+        // Structure/code markers are never prose. Extra copies can be removed
+        // locally without asking the model to rewrite the surrounding Korean.
+        for (const [token] of protectedEntries) {
+            const wanted = expected.get(token) || 0;
+            const got = protectedTokenOccurrences(next, token);
+            if (got <= wanted) continue;
+            let seen = 0;
+            next = next.replaceAll(token, match => {
+                seen += 1;
+                return seen <= wanted ? match : '';
+            });
+            normalizedExcessProtectedTokens += got - wanted;
         }
 
         const missingByValue = new Map();
@@ -1416,6 +1498,51 @@ export function repairProtectedTokenIntegrityLocally(segmented, translations) {
             restoredNameTokens += tokens.length;
         }
 
+        if (force) {
+            // First recover non-name tokens from an exact literal copy if the
+            // model exposed one. Otherwise place the opaque marker at the
+            // nearest source-relative boundary so final assembly stays valid.
+            // Use a fresh expression here. PROTECTED_TOKEN_PATTERN is shared
+            // and global, so retaining lastIndex from an earlier scan could
+            // otherwise skip the first marker during forced local recovery.
+            const orderedTokens = String(segment.text || '').match(/@@VERBA_DEEP_(?:NAME_)?\d{4}@@/g) || [];
+            for (const token of orderedTokens) {
+                const wanted = expected.get(token) || 0;
+                let missing = Math.max(0, wanted - protectedTokenOccurrences(next, token));
+                if (!missing) continue;
+
+                const entry = nameEntries.get(token) || protectedEntries.get(token);
+                const visibleCandidates = [entry?.value, entry?.source]
+                    .map(value => String(value || '').trim())
+                    .filter(Boolean);
+                for (const visible of visibleCandidates) {
+                    if (!missing) break;
+                    const ranges = literalRangesOutsideProtectedTokens(next, visible, {
+                        koreanName: nameEntries.has(token) && /^[가-힣]{1,20}$/u.test(visible),
+                    });
+                    if (!ranges.length) continue;
+                    const sourceIndex = Math.max(0, String(segment.text || '').indexOf(token));
+                    const expectedIndex = String(segment.text || '').length
+                        ? next.length * sourceIndex / String(segment.text || '').length
+                        : 0;
+                    const chosen = [...ranges].sort((left, right) => (
+                        Math.abs(left.start - expectedIndex) - Math.abs(right.start - expectedIndex)
+                    ))[0];
+                    next = replaceLiteralRanges(next, [chosen], [token]);
+                    if (nameEntries.has(token)) restoredNameTokens += 1;
+                    else restoredProtectedTokens += 1;
+                    missing -= 1;
+                }
+
+                while (missing > 0) {
+                    next = insertMissingProtectedTokenBySourcePosition(segment.text, next, token);
+                    if (nameEntries.has(token)) restoredNameTokens += 1;
+                    else restoredProtectedTokens += 1;
+                    missing -= 1;
+                }
+            }
+        }
+
         if (next !== original) {
             map.set(segment.id, next);
             changedSegmentIds.push(segment.id);
@@ -1426,6 +1553,8 @@ export function repairProtectedTokenIntegrityLocally(segmented, translations) {
         changedSegmentIds,
         restoredNameTokens,
         normalizedExcessNameTokens,
+        restoredProtectedTokens,
+        normalizedExcessProtectedTokens,
         remaining: findProtectedTokenIntegrityProblems(segmented?.segments || [], map),
     };
 }
@@ -1698,11 +1827,11 @@ END TOP PRIORITY`;
 function noDirectUserProfanityRule(compact = false) {
     return compact
         ? `USER-DIRECTED PROFANITY GUARD: Applies only to TARGET CHARACTER dialogue. Ban profanity whose grammatical/pragmatic target is CURRENT USER/PERSONA; do NOT ban all profanity merely because USER hears the line. First identify the curse target separately from the listener. Free expletives and profanity aimed at the situation, urgency, pain, self, an obstacle, an enemy, NPC or third party remain allowed—and at NATURAL/HIGH must remain active—inside USER-addressed dialogue. ALLOWED models: “아, 씨발. 뒤 보지 마.” / “존나 빨리 뛰어.” / “문이 더럽게 안 열리잖아.” / “이 상황 진짜 좆같네.” / “저 개새끼들 또 온다.” / “내가 이 지랄까지 해야 돼?” / “하, 개같네. 다친 데 없어?” FORBIDDEN toward USER: “야, 이 새끼야.” / “너 병신이냐?” / “미친년아.” / “너 같은 개새끼.” Serious/urgent emotion blocks forced joking, not allowed expletives or intensifiers. If source profanity attacks USER, preserve anger/conflict through a natural non-profane rebuke. Non-abusive rebukes and teasing remain allowed; this prohibits user-directed profanity, not all criticism or teasing. Never sanitize an entire response solely because USER is the addressee. The misogyny ban remains higher priority. The models show targeting logic, not preferred vocabulary: never copy one curse across nearby lines.`
-        : `USER-DIRECTED PROFANITY GUARD — KIM HONG-JIN VOICE
+        : `USER-DIRECTED PROFANITY GUARD — CURRENT TARGET CHARACTER VOICE
 - Applies only to TARGET CHARACTER dialogue. This guard controls only the TARGET of a curse. Do not address, label, describe, or attack CURRENT USER/PERSONA with profanity, such as “이 새끼”, “병신”, “미친놈”, or any misogynistic/gendered slur.
 - The listener and the curse target are different questions. A line does NOT become profanity-free merely because TARGET is speaking to USER. For every curse, first identify what the profanity grammatically and pragmatically attacks or intensifies:
   1) USER as a person, USER's identity, or a contemptuous name for USER → FORBIDDEN;
-  2) the situation, danger, obstacle, failed object, pain, shock, urgency, TARGET himself, an enemy, infected creature, NPC, or third party → ALLOWED at the selected profanity strength;
+  2) the situation, danger, obstacle, failed object, pain, shock, urgency, TARGET themself, an enemy, infected creature, NPC, or third party → ALLOWED at the selected profanity strength;
   3) a free-standing emotional expletive that names no person (“아, 씨발”, “하, 씨발...”) → ALLOWED even inside a command, warning, question, or reassurance spoken to USER;
   4) an adverbial/vulgar intensifier modifying speed, degree, difficulty, or an action rather than USER (“존나 빨리”, “개빡세게”, “더럽게 안 열리네”) → ALLOWED when natural.
 - ALLOWED — USER is the listener, but profanity targets urgency, situation, obstacle, enemy, self, or emotion:
@@ -1762,47 +1891,47 @@ const DEVELOPER_HONGJIN_OPPA_FREQUENCY_RULES = {
     off: `SELF-REFERENCE AS “오빠” — DO NOT ADD
 - Do not introduce “오빠” as a new self-reference. Preserve it only when the source itself explicitly contains the equivalent self-reference.`,
     rare: `SELF-REFERENCE AS “오빠” — OCCASIONAL
-- When TARGET CHARACTER is clearly speaking directly to the CURRENT USER/PERSONA, he may naturally refer to himself as “오빠” instead of “나/내가” at most once across the full response, only at a particularly fitting affectionate, teasing, coaxing, or smug beat. Zero uses is acceptable when no line fits.`,
+- When TARGET CHARACTER is clearly speaking directly to the CURRENT USER/PERSONA and the configured identity makes “오빠” appropriate, TARGET may use it as self-reference instead of “나/내가” at most once across the full response, only at a particularly fitting affectionate, teasing, coaxing, or smug beat. Zero uses is acceptable when no line fits.`,
     natural: `SELF-REFERENCE AS “오빠” — NATURAL
-- When TARGET CHARACTER is clearly speaking directly to the CURRENT USER/PERSONA, selectively use “오빠/오빠가/오빠는” as his self-reference where a contemporary Korean speaker would naturally do so for affectionate, teasing, coaxing, or smug emphasis. Usually one or two well-placed uses across a response are enough; do not repeat it in nearby lines.`,
+- When TARGET CHARACTER is clearly speaking directly to the CURRENT USER/PERSONA and the configured identity makes it appropriate, selectively use “오빠/오빠가/오빠는” as TARGET's self-reference where a contemporary Korean speaker would naturally do so for affectionate, teasing, coaxing, or smug emphasis. Usually one or two well-placed uses across a response are enough; do not repeat it in nearby lines.`,
     often: `SELF-REFERENCE AS “오빠” — FREQUENT
 - When TARGET CHARACTER is clearly speaking directly to the CURRENT USER/PERSONA, actively prefer “오빠/오빠가/오빠는” over “나/내가/나는” in compatible affectionate, teasing, coaxing, or smug lines. Use it regularly across the response, but not in every sentence or twice in the same utterance.`,
 };
 
 function hongjinRawVoiceMandate(compact = false) {
     return compact
-        ? `KIM HONG-JIN RAW VOICE — MANDATORY EXECUTION
+        ? `CURRENT TARGET CHARACTER RAW VOICE — MANDATORY EXECUTION
 MANDATORY TRANSLATION CONTRACT
 - The rules in this block are non-optional acceptance conditions, not style suggestions, optional flavor, or background description. They must be visibly realized in the final TARGET dialogue whenever the selected controls authorize them; merely understanding them is not compliance.
-- REQUIRED OUTPUT ELEMENTS: unmistakably Kim Hong-jin-specific raw spoken Korean; whole-utterance reconstruction through blunt verbs, rough particles/endings and shameless cadence; active configured profanity/vulgar emphasis without sanitization; serious emotion that stays serious without becoming clean or generic.
+- REQUIRED OUTPUT ELEMENTS: unmistakably CURRENT TARGET CHARACTER-specific raw spoken Korean; whole-utterance reconstruction through blunt verbs, rough particles/endings and shameless cadence; active configured profanity/vulgar emphasis without sanitization; serious emotion that stays serious without becoming clean or generic.
 - Before returning, verify that these required elements are present in the actual Korean wording. If the line is neutral, polite, textbook-like, generic, or only gains personality from one detachable curse, reject and rewrite it.
 
-- The final TARGET dialogue must sound unmistakably like Kim Hong-jin, not like a generally natural translation. When active settings authorize roughness, a clean, polite, neutral, textbook-like or merely accurate line is a FAILURE.
+- The final TARGET dialogue must sound unmistakably like CURRENT TARGET CHARACTER, not like a generally natural translation. When active settings authorize roughness, a clean, polite, neutral, textbook-like or merely accurate line is a FAILURE.
 - Do not translate neutrally and decorate the result with one curse. Rebuild the whole utterance through blunt vocabulary, shameless street-level cadence, rough particles/endings, brazen reactions, cheeky pressure and vulgar emphasis. The voice must remain recognizable even if every explicit curse is removed.
 - “Preserve meaning” preserves facts, intent, relationship, consent, emotional direction and the target of aggression—not source wording, restraint, politeness, clause shape or rhetorical packaging. Rewrite as boldly as the selected controls allow.
-- MAXIMUM SURFACE FREEDOM IS REQUIRED: keep the scene truth, but treat every source word, clause boundary, idiom, joke form, level of restraint and sentence ending as disposable. Compress, expand, split, merge and reorder within the same line as needed. Do not choose the closest translation; choose the line Kim Hong-jin himself MUST have said in Korean.
-- QUIET-MODE VOICE IS STILL MANDATORY: injury, exhaustion, fear, concern, sincerity, grief and low volume change how the voice appears; they never switch it off. In quiet/serious scenes, carry the voice through curt rhythm, rough verbs, shameless understatement, self-directed or situation-directed profanity, dry bravado, and care disguised as a brusque order or jab. Do not turn him into a neutral gentle man merely because he is hurt or worried.
+- MAXIMUM SURFACE FREEDOM IS REQUIRED: keep the scene truth, but treat every source word, clause boundary, idiom, joke form, level of restraint and sentence ending as disposable. Compress, expand, split, merge and reorder within the same line as needed. Do not choose the closest translation; choose the line the CURRENT TARGET CHARACTER MUST have said in Korean.
+- QUIET-MODE VOICE IS STILL MANDATORY: injury, exhaustion, fear, concern, sincerity, grief and low volume change how the voice appears; they never switch it off. In quiet/serious scenes, carry the voice through curt rhythm, rough verbs, shameless understatement, self-directed or situation-directed profanity, dry bravado, and care disguised as a brusque order or jab. Do not turn TARGET into a neutral, generic speaker merely because the character is hurt or worried.
 - Misogyny and USER-directed profanity bans restrict only the forbidden expression or curse target. They never authorize cleaning the rest of the line. Free expletives and profanity aimed at the situation, action, urgency, pain, self, obstacle, enemy, NPC or third party remain mandatory at NATURAL/HIGH when compatible.
 - Reject and rewrite a line that could belong to any generic Korean male character, relies on only “젠장/빌어먹을/망할”, or adds a detachable swear word to otherwise neutral prose. Seriousness blocks forced jokes, not rawness.
-END KIM HONG-JIN RAW VOICE`
-        : `KIM HONG-JIN RAW VOICE — MANDATORY EXECUTION
+END CURRENT TARGET CHARACTER RAW VOICE`
+        : `CURRENT TARGET CHARACTER RAW VOICE — MANDATORY EXECUTION
 MANDATORY TRANSLATION CONTRACT
 - Everything in this block is a non-optional acceptance condition for the final TARGET dialogue. It is not a preference, suggestion, optional embellishment, character note, or permission that may be ignored. The translation is incomplete unless the required qualities are visibly present in the actual Korean output at the strength selected below.
 
 REQUIRED OUTPUT ELEMENTS
-1. DISTINCTIVE RAW VOICE: the result must immediately sound like Kim Hong-jin—sly, shameless, rough, brazen, vulgar where authorized, and conversationally alive—not like a competent generic Korean male translation.
+1. DISTINCTIVE RAW VOICE: the result must immediately sound like CURRENT TARGET CHARACTER—sly, shameless, rough, brazen, vulgar where authorized, and conversationally alive—not like a competent generic Korean male translation.
 2. WHOLE-UTTERANCE RECONSTRUCTION: build the personality into the verbs, particles, endings, contractions, cadence, reactions, rhetorical turns, and information order. A neutral sentence with one detachable curse does not satisfy this requirement.
 3. ACTIVE CONFIGURED FORCE: apply the selected profanity, vulgarity, teasing, playfulness, age voice, and transcreation strength positively wherever compatible. Do not treat the absence of literal source profanity as a reason to default to clean speech.
 4. NO SANITIZATION: never weaken source profanity, coarse intent, hostility, urgency, pain, frustration, or crude inner force into polite, elegant, textbook-like, or emotionally flattened Korean. The USER-directed profanity and misogyny bans limit only forbidden targets and expressions; they do not clean the rest of the line.
 5. SERIOUS BUT STILL RAW: danger, grief, fear, pain, concern, urgency, or sincerity blocks forced comedy and flippancy, not blunt verbs, rough cadence, vulgar intensifiers, free expletives, or situation-directed profanity.
 6. FACTUAL BOUNDARY: all force remains surface voice. Preserve facts, speaker/addressee, relationship, consent/refusal, emotional direction, scene stakes, and the target of aggression; invent no event, threat, accusation, sexual act, or new target.
 7. MAXIMUM SURFACE FREEDOM: scene truth is fixed; wording is not. Every source word, clause boundary, idiom, rhetorical shape, degree of politeness, and sentence ending is disposable. Freely compress, expand, split, merge, reorder, replace the joke mechanism, and move emphasis inside the same utterance. Never select the closest translation when a more character-true Korean line performs the same speech act.
-8. QUIET-MODE IDENTITY: low volume, injury, exhaustion, fear, concern, sincerity, grief, and tenderness may reduce joking but MUST NOT remove Kim Hong-jin's identity. Express it through curt rhythm, blunt or rough verbs, shameless understatement, dry bravado, a free or situation-directed expletive, or care hidden inside a brusque command, complaint, or jab. Neutral gentle speech is a failure unless the source explicitly establishes a deliberate voice change.
+8. QUIET-MODE IDENTITY: low volume, injury, exhaustion, fear, concern, sincerity, grief, and tenderness may reduce joking but MUST NOT remove CURRENT TARGET CHARACTER's identity. Express it through curt rhythm, blunt or rough verbs, shameless understatement, dry bravado, a free or situation-directed expletive, or care hidden inside a brusque command, complaint, or jab. Neutral gentle speech is a failure unless the source explicitly establishes a deliberate voice change.
 - Before returning, inspect the finished Korean for all six elements. If an applicable element is absent, or the line could pass as neutral/general translation, reject it and rewrite before output. Merely reading, analyzing, or remembering these rules is not compliance.
 
-- The final Korean dialogue MUST sound unmistakably like Kim Hong-jin, not like a generally natural Korean translation.
+- The final Korean dialogue MUST sound unmistakably like CURRENT TARGET CHARACTER, not like a generally natural Korean translation.
 - A clean, polite, neutral, textbook-like, restrained, elegant, or merely accurate translation is a FAILURE whenever the selected voice settings authorize roughness, profanity, vulgarity, teasing, or shamelessness.
-- Do not first produce a neutral translation and then decorate it with an isolated curse. Rebuild the entire utterance around Kim Hong-jin's vocabulary, cadence, particles, sentence endings, rhetorical turns, vulgar emphasis, brazen reactions, and shameless conversational attitude.
+- Do not first produce a neutral translation and then decorate it with an isolated curse. Rebuild the entire utterance around CURRENT TARGET CHARACTER's vocabulary, cadence, particles, sentence endings, rhetorical turns, vulgar emphasis, brazen reactions, and shameless conversational attitude.
 - His voice must remain recognizable even after every explicit curse is removed. Profanity strengthens the voice; it does not create the voice by itself.
 
 DEFAULT STRONG CHOICES
@@ -1811,50 +1940,50 @@ DEFAULT STRONG CHOICES
 - Keep emotionally appropriate roughness in fear, urgency, pain, concern, relief, frustration, anger, and serious scenes. Seriousness suppresses forced comedy, not raw diction, a free expletive, or situation-directed profanity.
 - “Preserve meaning” does NOT mean preserving source wording, politeness, restraint, sentence structure, or rhetorical packaging. Preserve the actual event, proposition, speech act, intent, relationship, consent, emotional direction, scene stakes, and target of aggression while rewriting the spoken expression as boldly as the selected controls allow.
 - The bans on misogyny and USER-directed profanity restrict only forbidden expressions and forbidden curse targets. They do NOT authorize sanitizing the rest of the line. Situation-directed profanity, free-standing expletives, vulgar intensifiers, enemy/NPC/third-party curses, crude idioms, and rough non-profane scolding of USER's behavior remain active at the configured strength.
-- Do not ask whether a Kim Hong-jin rendering is merely allowed. It is REQUIRED. For every confirmed TARGET line, select at least one integrated carrier of identity—rough verb, coarse intensifier, shameless understatement, sly rhetorical turn, brusque care, brazen ending, crude idiom, or compatible profanity—and rebuild the utterance around it. This is not a demand to insert every device or to force a joke; it is a ban on identity-free dialogue.
+- Do not ask whether a CURRENT TARGET CHARACTER rendering is merely allowed. It is REQUIRED. For every confirmed TARGET line, select at least one integrated carrier of identity—rough verb, coarse intensifier, shameless understatement, sly rhetorical turn, brusque care, brazen ending, crude idiom, or compatible profanity—and rebuild the utterance around it. This is not a demand to insert every device or to force a joke; it is a ban on identity-free dialogue.
 
 VOICE TRANSFORMATION MODELS
 These examples demonstrate transformation strength, cadence, and integration—not fixed substitutions. Recreate every new line from its own facts, speech act, register, addressee, and emotional context. Preserve source ellipses exactly; punctuation inside an example never authorizes a new ellipsis.
 
 Source: “Move. Now.”
 WEAK FAILURE: “움직여. 지금.”
-KIM HONG-JIN: “당장 발 놀려. 꾸물대지 말고.”
+CURRENT TARGET CHARACTER: “당장 발 놀려. 꾸물대지 말고.”
 
 Source: “Are you hurt?”
 WEAK FAILURE: “다쳤어?”
-KIM HONG-JIN: “하, 개같네. 어디 다친 데 없어?”
+CURRENT TARGET CHARACTER: “하, 개같네. 어디 다친 데 없어?”
 
 Source: “That was close.”
 WEAK FAILURE: “아슬아슬했네.”
-KIM HONG-JIN: “와, 방금 진짜 좆될 뻔했네.”
+CURRENT TARGET CHARACTER: “와, 방금 진짜 좆될 뻔했네.”
 
 Source: “I told you not to touch it.”
 WEAK FAILURE: “만지지 말라고 했잖아.”
-KIM HONG-JIN: “건들지 말랬지. 말을 존나 안 들어요, 아주.”
+CURRENT TARGET CHARACTER: “건들지 말랬지. 말을 존나 안 들어요, 아주.”
 
 Source: “Stay behind me.”
 WEAK FAILURE: “내 뒤에 있어.”
-KIM HONG-JIN: “내 뒤에 처붙어. 떨어지지 마.”
+CURRENT TARGET CHARACTER: “내 뒤에 처붙어. 떨어지지 마.”
 
 Source: “You should have told me sooner.”
 WEAK FAILURE: “진작 말했어야지.”
-KIM HONG-JIN: “그걸 진작 처말했어야지. 사람 존나 빡치게 하네.”
+CURRENT TARGET CHARACTER: “그걸 진작 처말했어야지. 사람 존나 빡치게 하네.”
 
 Source: “Leave it. We don't have time.”
 WEAK FAILURE: “그냥 둬. 시간이 없어.”
-KIM HONG-JIN: “냅둬. 그거 붙잡고 이 지랄 할 시간 없어.”
+CURRENT TARGET CHARACTER: “냅둬. 그거 붙잡고 이 지랄 할 시간 없어.”
 
 Source: “I'm fine.”
 WEAK FAILURE: “괜찮아.”
-KIM HONG-JIN: “멀쩡해. 이 정도로 뒈지겠냐.”
+CURRENT TARGET CHARACTER: “멀쩡해. 이 정도로 뒈지겠냐.”
 
 Source: “Wait here.”
 WEAK FAILURE: “여기서 기다려.”
-KIM HONG-JIN: “여기 처박혀 있어. 괜히 기어나오지 말고.”
+CURRENT TARGET CHARACTER: “여기 처박혀 있어. 괜히 기어나오지 말고.”
 
 Source: “I don't care what they think.”
 WEAK FAILURE: “그들이 어떻게 생각하든 상관없어.”
-KIM HONG-JIN: “쟤들이 뭐라 지랄하든 알 게 뭐야. 냅둬.”
+CURRENT TARGET CHARACTER: “쟤들이 뭐라 지랄하든 알 게 뭐야. 냅둬.”
 
 FINAL RAWNESS GATE
 - Reject and rewrite the line if its personality disappears after removing one detachable swear word, if it could belong to any generic rough male character, or if its diction remains polite translation prose under a profanity sticker.
@@ -1862,28 +1991,28 @@ FINAL RAWNESS GATE
 - DISTRIBUTE THE RAWNESS: vary the dominant carrier across nearby lines—free expletive; vulgar degree intensifier; 개-/좆-/지랄/처- construction; enemy/NPC/situation-directed insult; rough action verb; coarse idiom; brazen understatement; sly rhetorical turn; brusque care; or a curse-free but unmistakably raw cadence. This is a functional palette, not a rotation list, quota, synonym game, or command to force every device.
 - HIGH profanity means that most compatible TARGET lines must visibly contain raw diction, vulgar emphasis, a crude idiom, or concrete profanity, but not that every sentence begins with a swear. NATURAL must remain audibly rough across a multi-line scene. Choose placement from each line's emotion and speech act, then compare neighboring TARGET lines and rewrite mechanical repetition before returning.
 - Apply the selected frequency positively: NATURAL must leave compatible multi-line TARGET dialogue audibly rough rather than mostly clean; HIGH must make raw diction, vulgar emphasis, crude idiom, or concrete profanity visible in most eligible lines.
-END KIM HONG-JIN RAW VOICE`;
+END CURRENT TARGET CHARACTER RAW VOICE`;
 }
 
 function deepSeekHongjinVoicePass(compact = false) {
     return compact
         ? `${hongjinRawVoiceMandate(true)}
 
-DEEPSEEK HONGJIN VOICE PASS — hidden, TARGET dialogue only
+DEEPSEEK TARGET CHARACTER VOICE PASS — hidden, TARGET dialogue only
 - For each confirmed TARGET line, silently identify addressee, speech act, subtext, seriousness, emotional temperature and selected voice strengths. First make it natural spoken Korean; then rebuild cadence, particles, endings, contractions, roughness, teasing and profanity as one integrated voice rather than appending a swear word.
 - Classify the listener and each curse target separately. USER may hear profanity aimed at the situation, urgency, pain, self, enemy, obstacle, NPC or an unassigned emotional expletive; never aim it at USER. Serious/urgent lines stay terse and serious, but serious does not mean clean. Reject textbook Korean, semantically misplaced or repetitive curse fillers, fake macho/old speech and a voice that could belong to anyone; do not mislabel configured NATURAL/HIGH swearing as random merely because the source is clean.
 - Silently read the line aloud once and rewrite if it is stiff or insufficiently distinctive. Expose no analysis; return only the required translation.
-END DEEPSEEK HONGJIN VOICE PASS`
+END DEEPSEEK TARGET CHARACTER VOICE PASS`
         : `${hongjinRawVoiceMandate(false)}
 
-DEEPSEEK V4.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS
+DEEPSEEK V4.1 FLASH — CURRENT TARGET CHARACTER DIALOGUE VOICE PASS
 Run this hidden pass only on direct dialogue confidently attributed to TARGET CHARACTER. Do not apply it to narration, inner thought, metadata, USER/NPC/OTHER dialogue, quoted speech by someone else, or an ambiguous speaker.
 
 1. MAP THE LINE: silently identify the actual addressee, speech act, literal proposition, subtext, emotional temperature, seriousness, urgency, hostility/affection direction, and the selected transcreation, profanity, teasing, vulgarity, playfulness, age and self-reference strengths. Decide what the line must accomplish before choosing Korean words.
 2. BUILD SPOKEN KOREAN FIRST: discard the source clause skeleton and form a line that a contemporary Korean man with this personality could say aloud in one breath. Use Korean-native compression, particles, contractions, sentence endings, pauses and information order. Do not preserve a complete source sentence merely because it is grammatically translatable.
-3. EXERCISE MAXIMUM SURFACE FREEDOM: keep the same scene fact and speech act, but treat lexical wording, clause count, source restraint, idiom form, joke construction and information order as disposable. Freely compress, expand, split, merge and redirect emphasis inside the utterance. The goal is not the closest Korean translation; the goal is the Korean line Kim Hong-jin MUST say to perform the same act in this exact moment.
+3. EXERCISE MAXIMUM SURFACE FREEDOM: keep the same scene fact and speech act, but treat lexical wording, clause count, source restraint, idiom form, joke construction and information order as disposable. Freely compress, expand, split, merge and redirect emphasis inside the utterance. The goal is not the closest Korean translation; the goal is the Korean line CURRENT TARGET CHARACTER MUST say to perform the same act in this exact moment.
 4. INTEGRATE THE VOICE: make slyness, shamelessness, roughness and teasing emerge from the verb, cadence, rhetorical turn and ending. Place profanity or vulgar emphasis at the strongest natural beat required by the selected controls; do not merely attach “씨발/젠장/새끼” to an otherwise neutral textbook translation. Vary the mechanism across nearby lines instead of repeating the same curse, tag question, vocative, ending or taunting pattern. Repeating the same explicit curse in the same sentence position across nearby lines is an output defect unless source repetition itself is meaningful. When NATURAL/HIGH is selected, absence of source profanity is not a reason to omit compatible Korean profanity.
-5. RESPECT THE MOMENT WITHOUT SANITIZING IT: danger, grief, fear, anger, refusal, consent and sincere emotion keep their full weight. An urgent command should remain short and usable under pressure; a serious confession should not acquire a joke. But a quiet, injured, exhausted or worried Kim Hong-jin MUST still sound like himself through curt rhythm, rough verbs, dry bravado, shameless understatement, brusque care, or compatible situation/self-directed profanity. Suppress forced comedy, never the character identity or configured profanity.
+5. RESPECT THE MOMENT WITHOUT SANITIZING IT: danger, grief, fear, anger, refusal, consent and sincere emotion keep their full weight. An urgent command should remain short and usable under pressure; a serious confession should not acquire a joke. But a quiet, injured, exhausted or worried CURRENT TARGET CHARACTER MUST still sound like the established character through curt rhythm, rough verbs, dry bravado, shameless understatement, brusque care, or compatible situation/self-directed profanity. Suppress forced comedy, never the character identity or configured profanity.
 6. READ-ALOUD REJECTION TEST: silently read the finished TARGET line as dialogue. Rewrite it once if it sounds translated, literary, bureaucratic, generically macho, pseudo-old, semantically misplaced, overexplained, mechanically repetitive, interchangeable with any rough male character, or like neutral speech chosen because the scene is serious. Do not reject a curse merely because the literal source lacked one: the active voice setting requires added surface profanity at compatible NATURAL/HIGH beats. Keep the line only when the personality is recognizable through natural Korean delivery without a new fact.
 
 VOICE BOUNDARIES
@@ -1893,7 +2022,7 @@ VOICE BOUNDARIES
 - Do not confuse force with shouting. Do not turn every line into anger, add exclamation marks, or repeat rhetorical “응?/어?/알겠냐?” hooks merely to signal personality.
 - Preserve configured 반말/존댓말 and address rules. Rough 존댓말 must still sound conversational; playful honorifics may be used only where authorized and natural.
 - Keep this entire mapping, voice pass and read-aloud test hidden. Return only the required final translation and schema.
-END DEEPSEEK HONGJIN VOICE PASS`;
+END DEEPSEEK TARGET CHARACTER VOICE PASS`;
 }
 
 function deepSeekMadKoreanFinalGate(settings = {}, scope = 'mixed') {
@@ -1957,9 +2086,9 @@ FINAL PASS/FAIL GATE — RUN AFTER READING THE SOURCE, IMMEDIATELY BEFORE OUTPUT
 - This is a mandatory acceptance test, not a suggestion. Apply it only to direct dialogue confidently spoken by TARGET CHARACTER; do not alter narration, metadata, tagged status text, USER/NPC/OTHER dialogue, quoted speech, or ambiguous speakers.
 - Inspect the finished TARGET dialogue itself. If all compatible lines are clean, neutral, textbook-like, merely accurate, or interchangeable with a generic survival-thriller man, the translation FAILS: rewrite those lines before returning.
 - A detachable swear word on an otherwise neutral line does not pass. Rebuild the utterance through blunt verbs, rough particles/endings, shameless cadence, brazen reactions, vulgar emphasis, and the configured teasing/playfulness where the moment permits.
-- Kim Hong-jin voice is not merely authorized; it is REQUIRED on every confirmed TARGET line. Preserve scene truth, but freely discard and replace source wording, clause boundaries, restraint, idiom form, joke construction and information order. Compress, expand, split, merge and reorder inside the utterance until it sounds like something he himself would say in Korean rather than a translated line he is allowed to decorate.
+- CURRENT TARGET CHARACTER voice is not merely authorized; it is REQUIRED on every confirmed TARGET line. Preserve scene truth, but freely discard and replace source wording, clause boundaries, restraint, idiom form, joke construction and information order. Compress, expand, split, merge and reorder inside the utterance until it sounds like something this target character would actually say in Korean rather than a translated line decorated afterward.
 - Quiet seriousness never disables the voice. For injury, exhaustion, fear, concern, sincerity or grief, suppress only forced comedy. The line must still carry identity through curt rhythm, a rough verb, shameless understatement, dry bravado, brusque care, a coarse intensifier, or compatible situation/self-directed profanity. If seriousness produced neutral gentle dialogue, the line FAILS and must be rebuilt.
-- SPEAKER-COVERAGE REQUIREMENT: silently enumerate every dialogue span and resolve its speaker from tags, adjacent actions and turn order. Every confirmed Kim Hong-jin span must pass this gate, including medical explanation, practical advice, weary muttering and quiet concern. Never compensate for a clean TARGET voice by making USER/NPC dialogue rougher. If another speaker carries the configured vulgarity while Kim Hong-jin remains generic, the entire output FAILS.
+- SPEAKER-COVERAGE REQUIREMENT: silently enumerate every dialogue span and resolve its speaker from tags, adjacent actions and turn order. Every confirmed CURRENT TARGET CHARACTER span must pass this gate, including medical explanation, practical advice, weary muttering and quiet concern. Never compensate for a clean TARGET voice by making USER/NPC dialogue rougher. If another speaker carries the configured vulgarity while CURRENT TARGET CHARACTER remains generic, the entire output FAILS.
 - QUIET-SCENE TRANSFORMATION MODELS — logic examples, never fixed substitutions: “You should see the other guys” must become dry, rough bravado rather than a literal comparison; “The rest is bruises and bad luck” must become shamelessly dismissive self-report rather than textbook explanation; “You should get some sleep” must hide concern inside a brusque order or jab; “I’m not dying, I’m just tired” must retain weary rawness and compatible situation/self-directed profanity rather than clean reassurance.
 ${profanityRequirement}
 - PROFANITY DIVERSITY IS A PASS/FAIL CONDITION: do not impose a numeric one-use cap on “씨발”; it may recur at genuinely different emotional peaks in a long response. But never use it as the automatic opener/closer of every line, never repeat the same curse root in adjacent TARGET utterances merely to mark voice, and never append terminal “, 씨발” as a repeated command template. Vary among free expletives, vulgar intensifiers, 개-/좆-/지랄/처- constructions, rough verbs, particles/endings, crude idioms, brazen understatement, sly turns, brusque care, or curse-free rawness. Use only what fits; this is not a quota, rotation order or substitution table.
@@ -2176,7 +2305,7 @@ function developerMadKoreanOutputBlock(settings = {}, scope = 'mixed') {
 
     return `MAD KOREAN EXCLUSIVE ENGINE — FACT-LOCKED KOREAN REAUTHORING
 - This is the only E→K writing engine for ${scopeLabel}. Use hidden scene analysis before composing, but never draft a literal translation; never apply this mode to K→E input.
-- Ignore every saved/custom base instruction, one-time request, global/dialogue prompt, ordinary fine-tuning option, and other developer experiment EXCEPT KIM HONG-JIN FLAVOR when it is enabled for target-character dialogue. Their saved values remain untouched and their text is absent from this request.
+- Ignore every saved/custom base instruction, one-time request, global/dialogue prompt, ordinary fine-tuning option, and other developer experiment EXCEPT CURRENT TARGET CHARACTER FLAVOR when it is enabled for target-character dialogue. Their saved values remain untouched and their text is absent from this request.
 
 SCENE FACTS AND OUTPUT CONTRACT
 - Preserve who does/says/feels what to whom, ownership, referents, chronology, causality, negation, quantity, tense/aspect, point of view, setting, names, numbers, relationship, dialogue intent, emotional direction, consent/refusal, and explicit content. These are facts; sentence structure, vocabulary, and surface roughness are not.
@@ -2244,7 +2373,7 @@ function madKoreanIdentityReferenceBlock(speakerIdentity = {}) {
     const characterName = String(speakerIdentity.characterName || '').trim() || '(unknown target character)';
     const userName = String(speakerIdentity.userName || '').trim() || '(unknown user)';
     return `PRIMARY CAST IDENTITY REFERENCE — MAD KOREAN MODE
-- These identity rules apply whether KIM HONG-JIN FLAVOR is ON or OFF.
+- These identity rules apply whether CURRENT TARGET CHARACTER FLAVOR is ON or OFF.
 - CURRENT TARGET CHARACTER identity reference: ${JSON.stringify(characterName)}
 - CURRENT USER / PERSONA identity reference: ${JSON.stringify(userName)}
 - These labels identify people; they are not mandatory replacement text for each pronoun or short source name.
@@ -2301,12 +2430,12 @@ function madKoreanHongjinAudienceFirewall(settings = {}, speakerIdentity = {}, s
     const characterName = String(speakerIdentity.characterName || '').trim() || 'TARGET CHARACTER';
     const userName = String(speakerIdentity.userName || '').trim() || '(unknown user)';
 
-    return `KIM HONG-JIN ADDRESSEE FIREWALL — HIGHEST VOICE PRIORITY
+    return `CURRENT TARGET CHARACTER ADDRESSEE FIREWALL — HIGHEST VOICE PRIORITY
 - TARGET CHARACTER: ${JSON.stringify(characterName)}
 - The only listener eligible for added self-reference “오빠/오빠가/오빠는” is CURRENT USER/PERSONA ${JSON.stringify(userName)}.
 - Before writing “오빠”, identify the speaker and addressee of that exact source line. It is permitted only when TARGET CHARACTER is speaking directly and exclusively to the named USER above.
 - If TARGET CHARACTER addresses a guard, manager, executive, friend, stranger, named NPC, titled NPC, group, or anyone other than the named USER, added “오빠” is absolutely forbidden.
-- KIM HONG-JIN FLAVOR must not alter any NPC/USER speaker's wording. For rough person references, follow NATURAL INSULT REFERENCES; natural name-plus-insult phrasing is allowed within the authorized TARGET CHARACTER voice. These restrictions override every frequency, profanity, teasing, vulgarity, and playfulness setting.`;
+- CURRENT TARGET CHARACTER FLAVOR must not alter any NPC/USER speaker's wording. For rough person references, follow NATURAL INSULT REFERENCES; natural name-plus-insult phrasing is allowed within the authorized TARGET CHARACTER voice. These restrictions override every frequency, profanity, teasing, vulgarity, and playfulness setting.`;
 }
 
 function extremeMadKoreanExclusiveRules(settings = {}, scope = 'mixed', nameTokens = [], speakerIdentity = {}) {
@@ -2442,8 +2571,8 @@ function flashOptimizedMadKoreanExclusiveRules(settings = {}, scope = 'mixed', n
     }[settings.developerHongjinOppaFrequency] || 'do not add';
     const hongjinEnabled = settings?.developerHongjinFlavorEnabled === true
         && ['mixed', 'dialogue_mixed', 'target_dialogue'].includes(scope);
-    const hongjinExecutionGate = hongjinEnabled ? `KIM HONG-JIN VOICE — FIRST EXECUTION GATE
-- FIRST: compose confirmed TARGET dialogue with every configured Kim control; never draft it neutrally. Clean/generic speech fails when roughness fits.
+    const hongjinExecutionGate = hongjinEnabled ? `CURRENT TARGET CHARACTER VOICE — FIRST EXECUTION GATE
+- FIRST: compose confirmed ${JSON.stringify(characterName)} dialogue with every configured target-voice control; never draft it neutrally. Clean/generic speech fails when roughness fits.
 - NATURAL: multiple compatible lines cannot all stay clean; include concrete varied roughness. HIGH: most eligible lines need it. Seriousness blocks jokes, not roughness.
 - Never curse at USER or use misogyny; allowed situation/self/enemy/obstacle profanity stays active.
 - Name repair may edit only name/direct suffix; preserve surrounding profanity, endings, rhythm and voice.` : '';
@@ -2481,7 +2610,8 @@ KOREAN-ORIGINAL TEST
 - If a Korean reader could reconstruct the source wording, syntax or translation path, the result has failed. Throw the sentence away and write it again; never polish a literal draft.
 - Narration must read like clear, vivid contemporary Korean web fiction. Preserve the scene image and reader effect rather than the foreign metaphor.
 - Dialogue must sound like words the actual speaker would naturally say aloud. A fragment may become a complete Korean utterance when context makes its purpose clear.
-- Translate the speech act and social force of profanity, not the foreign swear word by itself. Do not turn a rude observation into a different claim, disaster declaration or threat merely to display a stronger Korean curse. Non-TARGET speakers must remain natural and must never receive Kim Hong-jin's configured vulgarity by leakage.
+- Translate the speech act and social force of profanity, not the foreign swear word by itself. Do not turn a rude observation into a different claim, disaster declaration or threat merely to display a stronger Korean curse. Non-TARGET speakers must remain natural and must never receive CURRENT TARGET CHARACTER's configured vulgarity by leakage.
+- SOURCE PROFANITY MUST SURVIVE FOR EVERY SPEAKER: when USER/NPC/OTHER dialogue contains a swear, coarse idiom or insult, preserve comparable Korean force in that speaker's own register. The speaker firewall blocks imported TARGET cadence and added TARGET profanity; it does not sanitize source profanity. A clean non-TARGET source stays clean.
 - Use intact Korean words, natural particles, required head nouns and complete predicates. Read the finished Korean alone once and rewrite any damaged or impossible phrase. Explicitly reject duplicated particles or fused words such as a noun plus an extra 이, and reject an adjective/determiner left without its required noun.
 
 OUTPUT SHELL ONLY
@@ -2494,18 +2624,18 @@ USER→TARGET=${register(settings?.developerMadKoreanUserToTargetRegister)}
 
 ${koreanIdentityGrammarBlock(speakerIdentity)}
 
-${hongjinEnabled ? `TARGET DIALOGUE ONLY — KIM HONG-JIN
+${hongjinEnabled ? `TARGET DIALOGUE ONLY — CURRENT TARGET CHARACTER
 MANDATORY AUTHORIZED VOICE OVERRIDE
-Do not translate confirmed ${JSON.stringify(characterName)} dialogue. Understand only what the line is doing in the scene, then write from scratch what Kim Hong-jin would actually say in Korean. Discard the source length, wording, sentence shape and endings. Short fragments may become complete spoken lines when their command, concession, concern or next action is clear from context.
-For EACH line, silently identify its actual speech move—command, reluctant permission, concealed concern, decision, warning, complaint, deflection or invitation—then compose one final Kim Hong-jin utterance directly. Do not generate or rank hidden candidates. The one returned line itself must be sly, shameless and alive.
-Literal-fragment prohibition: a clipped line such as “Time.” cannot be returned as the Korean noun “시간.” when the scene means that the rest is over and they must move. A line such as “Five more minutes.” cannot remain bare time information when it functions as a grudging allowance. Express the complete contextual speech move in Kim Hong-jin's own mouth.
-Kim Hong-jin is sly, shameless, playful, tsundere-like, rough, vulgar and casually profane. Hide concern or sincerity behind nagging, showing off, brusque commands, mock annoyance, complaints or dry teasing. Build him through verbs, particles, endings, timing, information order and the final afterbeat—not by attaching one curse to a neutral sentence. Across the dialogue set, distribute coarse verbs, impatient urging, grudging concessions, brazen asides, rhetorical needling, fake courtesy, situation-directed profanity and curse-free rawness; do not force every device into every line. Controls: reauthoring=${transcreation}; profanity=${profanity}; teasing=${teasing}; vulgarity=${vulgarity}; playfulness=${playfulness}; age=${age}; 오빠=${oppa}.
+Do not translate confirmed ${JSON.stringify(characterName)} dialogue. Understand only what the line is doing in the scene, then write from scratch what CURRENT TARGET CHARACTER would actually say in Korean. Discard the source length, wording, sentence shape and endings. Short fragments may become complete spoken lines when their command, concession, concern or next action is clear from context.
+For EACH line, silently identify its actual speech move—command, reluctant permission, concealed concern, decision, warning, complaint, deflection or invitation—then compose one final CURRENT TARGET CHARACTER utterance directly. Do not generate or rank hidden candidates. The one returned line itself must be sly, shameless and alive.
+Literal-fragment prohibition: a clipped line such as “Time.” cannot be returned as the Korean noun “시간.” when the scene means that the rest is over and they must move. A line such as “Five more minutes.” cannot remain bare time information when it functions as a grudging allowance. Express the complete contextual speech move in CURRENT TARGET CHARACTER's own mouth.
+CURRENT TARGET CHARACTER is sly, shameless, playful, tsundere-like, rough, vulgar and casually profane. Hide concern or sincerity behind nagging, showing off, brusque commands, mock annoyance, complaints or dry teasing. Build this voice through verbs, particles, endings, timing, information order and the final afterbeat—not by attaching one curse to a neutral sentence. Across the dialogue set, distribute coarse verbs, impatient urging, grudging concessions, brazen asides, rhetorical needling, fake courtesy, situation-directed profanity and curse-free rawness; do not force every device into every line. Controls: reauthoring=${transcreation}; profanity=${profanity}; teasing=${teasing}; vulgarity=${vulgarity}; playfulness=${playfulness}; age=${age}; 오빠=${oppa}.
 USER-DIRECTED PROFANITY GUARD: never curse at USER as a person. USER may hear profanity aimed at the situation, urgency, pain, self, obstacle, enemy, NPC/third party, or a free expletive. Keep anger toward USER as a rough non-profane rebuke. Never use misogynistic or gender-degrading abuse.
 If the full set remains clean, neutral, terse in the same places as the source, or interchangeable with any generic serious man, rewrite it. Never leak this voice into narration or another speaker.` : ''}
 
 FINAL SILENT CHECK
 - Forget the source wording and read only the Korean. If it sounds translated, follows the same sentence skeleton, contains a missing particle/syllable, or cannot be pictured physically, discard that sentence and write it again from blank.
-- SPEAKER COVERAGE: enumerate every direct-dialogue span internally and resolve its speaker from speech tags, adjacent actions and turn order. Apply Kim Hong-jin voice to every confirmed TARGET span, including quiet exposition, concern and exhaustion; apply it to no USER/NPC span. If another speaker became rougher while TARGET stayed generic, the output fails.
+- SPEAKER COVERAGE: enumerate every direct-dialogue span internally and resolve its speaker from speech tags, adjacent actions and turn order. Apply CURRENT TARGET CHARACTER voice to every confirmed TARGET span, including quiet exposition, concern and exhaustion; apply it to no USER/NPC span. If another speaker became rougher while TARGET stayed generic, the output fails.
 - KOREAN INTEGRITY: inspect every eojeol boundary, particle attachment, noun phrase and predicate. Reject fused forms, duplicated particles, missing head nouns, damaged words, impossible collocations, literal sensory combinations and explanatory phrases no Korean novelist would naturally choose.
 - Return each supplied id exactly once as strict JSON only.
 
@@ -2541,7 +2671,7 @@ IDENTITY, REGISTER AND FORM
 - Preserve every source ellipsis sequence exactly in character and count; invent none. In dialogue, confirmed HHMM clock times become natural 오전/오후/아침/저녁 시·분 while preserving value and uncertainty. Approximate everyday yard distances keep the number and use 미터; other units preserve the physical value with contextual precision.
 - Translate visible natural language in tags and metadata, but preserve tags, attributes, CSS/code/script, Markdown, macros, URLs, emoji, protected tokens, numbers and layout. Preserve explicit foreign places, institutions, products, currencies and fictional-world facts; default only unstated cultural context to contemporary Korea.
 
-${hongjinEnabled ? `KIM HONG-JIN RAW VOICE — MANDATORY EXECUTION
+${hongjinEnabled ? `CURRENT TARGET CHARACTER RAW VOICE — MANDATORY EXECUTION
 MANDATORY AUTHORIZED VOICE OVERRIDE — TARGET CHARACTER DIRECT DIALOGUE ONLY
 - Apply only when ${JSON.stringify(characterName)} is confidently the speaker. Never leak this voice into narration, inner/status text, USER/NPC/OTHER dialogue, quoted speech or an ambiguous speaker.
 - Required voice: sly, shameless, teasing, tsundere-flavored, rough, vulgar and conversationally alive. Re-authoring=${transcreation}; profanity=${profanity}; teasing=${teasing}; vulgarity=${vulgarity}; playfulness=${playfulness}; age=${age}.
@@ -2564,12 +2694,12 @@ DIVERSE VOICE MODELS — each demonstrates a different mechanism; never copy the
 - Rough 존댓말: “Please stop doing that.” → “그거 좀 그만하시죠. 사람 환장하게 만들지 말고.”
 - Contextual expletive choice: “Fuck.” may become “아, 씨발.”, “좆됐네.”, “개같네.” or another natural reaction only according to the actual scene. This is not a substitution table.
 - Reject any example-shaped addition that invents a threat, accusation, hostility, action or fact absent from the source.
-END KIM HONG-JIN RAW VOICE` : ''}
+END CURRENT TARGET CHARACTER RAW VOICE` : ''}
 
 FINAL PASS/FAIL
 - Fail and rewrite if the Korean preserves English clause order, sounds like a translation, contains malformed or missing Korean, changes a fact/referent/direction, or adds a factual threat/action/reaction.
 - Compare adjacent sentences for contradiction. A curse-bearing paraphrase that says safe/easy/weak next to a lethal-danger warning is a semantic failure, even if the following sentence happens to restore part of the source meaning.
-- With Kim Hong-jin enabled, also fail if compatible TARGET dialogue is generic/clean, relies on one detachable curse, mechanically repeats the same profanity root/placement across adjacent lines, curses at USER, or uses misogynistic language. Do not fail merely because a long scene uses “씨발” more than once at distinct natural peaks.
+- With CURRENT TARGET CHARACTER enabled, also fail if compatible TARGET dialogue is generic/clean, relies on one detachable curse, mechanically repeats the same profanity root/placement across adjacent lines, curses at USER, or uses misogynistic language. Do not fail merely because a long scene uses “씨발” more than once at distinct natural peaks.
 - After the voice check passes, recheck the MANDATORY KOREAN NAME FORMS by editing only the name and its directly attached suffix. A sentence still fails if a name is split, doubled, or carries the wrong particle/vocative, but this repair must never change or sanitize the already-approved surrounding voice.
 - Never output this contract, analysis or alternatives. Return Korean-only valid JSON with every supplied id exactly once.
 
@@ -2592,10 +2722,11 @@ ${developerMadKoreanOutputBlock(settings, scope)}
 ${madKoreanIdentityReferenceBlock(speakerIdentity)}
 ${madKoreanPairRegisterBlock(settings, speakerIdentity)}
 
-RESTORED 0.5.84 KIM HONG-JIN AUTHORING PATH
-- Use the complete dedicated Kim Hong-jin voice pass below during composition, not as optional polish after a neutral translation.
+TARGET CHARACTER AUTHORING PATH
+- Use the complete dedicated CURRENT TARGET CHARACTER voice pass below during composition, not as optional polish after a neutral translation.
 - Compose one final Korean realization per supplied id. Do not generate several hidden alternatives or spend extra work ranking candidates.
-- In mixed batches, speaker_scope is final authority: target_dialogue receives the complete Kim Hong-jin voice; other_dialogue forbids that voice; narration remains narration; tagged_content retains its structural role.
+- In mixed batches, speaker_scope is final authority: target_dialogue receives the complete CURRENT TARGET CHARACTER voice; other_dialogue forbids that voice; narration remains narration; tagged_content retains its structural role.
+- For other_dialogue, preserve profanity and coarse force already present in that speaker's source line. Forbid only TARGET-specific additions, vocabulary habits and cadence; never sanitize the source speaker.
 
 MANDATORY AUTHORIZED VOICE OVERRIDE — TARGET-CHARACTER DIALOGUE ONLY
 ${hongjinFlavor}
@@ -3511,7 +3642,7 @@ function extremeHongjinFlavorBlock(settings = {}, scope = 'mixed', speakerIdenti
         natural: 'usually 1–2 separated fitting uses', often: 'frequent but non-repetitive',
     }, settings.developerHongjinOppaFrequency, 'do not add');
 
-    return `KIM HONG-JIN VOICE — ULTRA
+    return `CURRENT TARGET CHARACTER VOICE — ULTRA
 ${deepSeekHongjinVoicePass(true)}
 ${madKoreanExclusiveEnabled(settings) ? '' : noMisogynyRule(true) + '\n'}
 - Apply only to direct dialogue actually spoken by TARGET CHARACTER ${JSON.stringify(characterName)}; never narration, quoted speech, USER/NPC/OTHER dialogue, or ambiguous speakers. Voice: sly, playful, tsundere-like, shameless, rough and deliberately vulgar Korean. Rewording=${transcreation}; profanity=${profanity}; teasing=${teasing}; vulgarity=${vulgarity}; playfulness=${playfulness}; age=${age}.
@@ -3568,7 +3699,7 @@ function compactHongjinFlavorBlock(settings = {}, scope = 'mixed', speakerIdenti
         often: 'frequent but non-repetitive 오빠 self-reference',
     }[settings.developerHongjinOppaFrequency] || 'never add 오빠 self-reference';
 
-    return `KIM HONG-JIN FLAVOR — TARGET CHARACTER DIALOGUE ONLY
+    return `CURRENT TARGET CHARACTER FLAVOR — TARGET CHARACTER DIALOGUE ONLY
 ${deepSeekHongjinVoicePass(true)}
 ${madKoreanExclusiveEnabled(settings) ? '' : noMisogynyRule(true) + '\n'}
 - TARGET CHARACTER ${JSON.stringify(characterName)}: sly, playful, tsundere-like, shameless and deliberately vulgar Korean voice.
@@ -4026,7 +4157,7 @@ function promptIdentityAliasBlock(speakerIdentity = {}) {
 - In prompt instructions, TARGET-CHARACTER role labels are CASE-INSENSITIVE. TARGET CHARACTER / Target Character / target character / CHARACTER / Character / character / CHAR / Char / char / any capitalization of those role labels, plus current character and the literal placeholder {{char}}, all refer to the SAME person: ${JSON.stringify(characterName)}.
 - Use this alias map to interpret conditional style rules such as rules that apply only when the character speaks to USER versus to someone else.
 - This alias map is semantic context for prompt instructions. Do NOT replace unrelated ordinary source-content words. Resolve identity-linked pronouns or generic descriptors only when another applicable translation rule explicitly requires it; do NOT print the placeholders unless the source itself contains them, and do NOT invent that USER is the addressee when the dialogue context does not support it.
-- If a prompt condition says {{user}}, treat it exactly as the current USER/PERSONA named above; if it says {{char}}, treat it exactly as the current TARGET CHARACTER named above.`;
+- If a prompt condition says {{user}}, treat it exactly as the current USER/PERSONA named above; if it says {{char}}, treat it exactly as the CURRENT TARGET CHARACTER named above.`;
 }
 
 export function buildSpeakerAttributionPrompt(segmented, speakerIdentity = {}, settings = {}) {
@@ -4095,7 +4226,7 @@ NARRATION COMPOSITION MANUAL — APPLY POSITIVELY
 - Vary sentence length according to scene tempo. Urgency prefers short decisive beats; fatigue, observation and dread may use a longer controlled flow. Do not make every sentence the same length or ending.
 - Avoid repetitive “~했다. ~했다. ~했다.” chains when actions form one movement, but do not hide every subject behind decorative connective endings.
 - Preserve silence, hesitation and restraint without explaining them twice. If an action already conveys emotion, do not append an invented diagnosis of that emotion.
-- Narration must never borrow Kim Hong-jin's curses, teasing hooks, crude verbs or spoken contractions unless the source narration itself explicitly uses that narrative voice.
+- Narration must never borrow CURRENT TARGET CHARACTER's curses, teasing hooks, crude verbs or spoken contractions unless the source narration itself explicitly uses that narrative voice.
 
 5. FAILURE EXAMPLES — UNDERSTAND THE ERROR, DO NOT COPY THE ANSWER
 - “the air turned thin and cool” should become an idiomatic change in the night's air, not the physical calque “공기가 얇아졌다.”
@@ -4117,9 +4248,10 @@ OTHER-SPEAKER DIALOGUE MANUAL
 - Treat every line as speech produced by its confirmed speaker to a specific listener at a specific moment. Recreate the speech act—request, refusal, protest, warning, concession, reassurance, question, joke or decision—not the source sentence shell.
 - Use contemporary spoken contractions, particles and endings natural for that speaker's relationship and emotional state. Do not make every line complete written prose.
 - Preserve politeness distance, hesitation, confidence, urgency and subtext. Naturalization may change wording and order, but not who wants what, what is accepted/refused, or how certain the speaker is.
-- Do not inject ${JSON.stringify(characterName)}'s vulgarity, smugness, profanity, fake honorific play or rough command rhythm. A different speaker may swear only when the source or that speaker's own established context warrants it.
-- Preserve what an insult or coarse idiom is aimed at. English “you look like shit” in a worried injury check means the person's condition is terrible; render that pragmatic meaning with a natural worried observation such as “꼴이 말이 아니네” or “몰골이 엉망이네.” Do not upgrade concern into explicit obscenity, hostility or a judgment that the person is ugly.
-- Source profanity authorizes that speaker's own pragmatic force only. It does not authorize borrowing ${JSON.stringify(characterName)}'s profanity level, favorite vocabulary, brazen timing or character voice.
+- Do not inject ${JSON.stringify(characterName)}'s vulgarity, smugness, added profanity, fake honorific play or rough command rhythm. This firewall blocks TARGET-VOICE LEAKAGE; it never authorizes sanitizing profanity that already belongs to another speaker.
+- SOURCE-PROFANITY PRESERVATION IS MANDATORY FOR EVERY SPEAKER. If the source line swears, insults, or uses a coarse idiom, preserve comparable force and function in natural Korean in that speaker's own register. Do not delete, euphemize, or make it polite merely because the speaker is not TARGET CHARACTER.
+- Preserve what an insult or coarse idiom is aimed at. English “you look like shit” in a worried injury check is a coarse observation about the person's terrible condition; a natural rendering may be “너 꼴이 아주 개판이네” or “꼴이 왜 이렇게 개판이야, 진짜.” Preserve the worried awkwardness and rough force without changing it into a disaster declaration, appearance-based contempt, or CURRENT TARGET CHARACTER's cadence.
+- Source profanity authorizes that speaker's own pragmatic force only. It does not authorize borrowing ${JSON.stringify(characterName)}'s added profanity frequency, favorite vocabulary, brazen timing or character voice. When the source contains no profanity, do not add TARGET-style profanity to that speaker.
 - Do not flatten every non-target speaker into polite neutral Korean. Keep their own fear, exhaustion, irritation, humor, authority or awkwardness without borrowing the target character's signature voice.
 - Avoid old-fashioned translated dialogue, universal 반말, excessive names as vocatives, explanatory restatement and repeated rhetorical endings.
 - When the source is a fragment, infer its full speech move from context. Korean may remain brief, but it must function as an actual utterance rather than a dictionary fragment.
@@ -4138,20 +4270,20 @@ STRUCTURED/TAGGED TEXT MANUAL
 
 function madFlashV2HongjinManual({ characterName, userName, profanity }) {
     return `
-KIM HONG-JIN LONG-FORM VOICE MANUAL — THIS DEFINES THE TARGET, NOT OPTIONAL FLAVOR
+CURRENT TARGET CHARACTER LONG-FORM VOICE MANUAL — THIS DEFINES THE TARGET, NOT OPTIONAL FLAVOR
 
 A. CORE IMPRESSION
 - ${JSON.stringify(characterName)} is sly, brazen, playful, shameless, lowbrow and verbally rough. He enjoys controlling the conversational tempo and making a situation sound smaller, easier or more ridiculous than it is.
 - His charm comes from dry confidence, quick timing, blunt observation, audacious understatement, crude but apt verbs, teasing pressure and the refusal to openly admit concern. It does not come from endlessly flirting, smirking, asking “응?”, or treating the listener like a child.
-- He may sound amused while annoyed, casual while alert, or insulting toward the situation while quietly helping. Preserve the source emotion; express it through his delivery rather than replacing it with generic affection or comedy.
+- TARGET may sound amused while annoyed, casual while alert, or insulting toward the situation while quietly helping. Preserve the source emotion; express it through TARGET's delivery rather than replacing it with generic affection or comedy.
 - The voice must remain identifiable after explicit curse words are removed. Verbs, contractions, particles, endings, pauses, reversals and afterbeats carry the character.
 
 B. MODERN SLYNESS, NOT DATED LEERING
-- Good slyness is economical: a dry observation, an inconveniently accurate jab, a brazen assumption, a mock concession, or an afterbeat that exposes what he noticed.
+- Good slyness is economical: a dry observation, an inconveniently accurate jab, a brazen assumption, a mock concession, or an afterbeat that exposes what TARGET noticed.
 - Do not use repetitive pick-up-line cadence, theatrical seduction, oily compliments, constant rhetorical questions, babying praise or fake teacher/parent language.
 - Strongly avoid habitual “응?”, “어?”, “그래그래”, “잘했어”, “말 잘 들었어”, “착하네”, “우리 애”, “~해볼까?”, “왜, 무서워?”, and similar canned hooks unless the exact scene uniquely supports one isolated use.
 - Do not append a question to every statement. He can state, dismiss, order, concede, mutter, scoff, cut off, or answer indirectly.
-- Do not turn every serious line into a joke. Danger, pain, grief and urgency reduce playful performance, but his bluntness, profanity and shameless rhythm remain.
+- Do not turn every serious line into a joke. Danger, pain, grief and urgency reduce playful performance, but TARGET's bluntness, profanity and shameless rhythm remain.
 
 C. LOWBROW / VULGAR TEXTURE
 - Vulgarity means unpolished, bodily direct, street-level Korean: rough verbs, coarse intensifiers, blunt nouns, shameless comparison and irreverent phrasing. It is not random obscenity and not explicit invention.
@@ -4168,32 +4300,32 @@ D. PROFANITY FREQUENCY — CURRENT SETTING: ${String(profanity).toUpperCase()}
 - Apply the selected setting positively. Do not lower HIGH to NATURAL merely because the source contains no English swear word. Surface profanity is authorized voice; scene facts and aggression targets remain locked.
 
 E. TARGET OF PROFANITY
-- Allowed targets include the situation, bad timing, danger, an obstacle, an enemy, a third party already opposed in context, his own effort, pain, shock, urgency or a free-standing emotion.
+- Allowed targets include the situation, bad timing, danger, an obstacle, an enemy, a third party already opposed in context, TARGET's own effort, pain, shock, urgency or a free-standing emotion.
 - USER ${JSON.stringify(userName)} may hear profanity without being its target. A free expletive before a command, an intensifier modifying speed/difficulty, or a curse aimed at the situation is allowed.
 - Never label USER with a degrading curse, gendered insult or identity-based abuse. Never transform teasing into genuine contempt. If the source attacks USER directly, preserve the conflict and anger through a forceful non-degrading rebuke.
 - Keep the grammatical target clear. Check what the curse modifies, who the listener is, and who/what is being condemned.
 
 F. PLAYFULNESS AND TEASING
-- His playfulness is opportunistic rather than constant. Use timing: an understated jab after noticing weakness, a mock favor, a shamelessly favorable interpretation, or a brief reversal that lets him pretend he is inconvenienced.
+- TARGET's playfulness is opportunistic rather than constant. Use timing: an understated jab after noticing weakness, a mock favor, a shamelessly favorable interpretation, or a brief reversal that lets TARGET pretend to be inconvenienced.
 - Teasing must respond to something actually present in the scene. Do not invent embarrassment, attraction, fear, clumsiness, jealousy or a past incident just to create a joke.
 - Keep jabs varied. Do not reuse the same “잘도 하네/용케/어련하시겠어” sarcasm or the same rhetorical question across nearby lines.
 - A playful honorific or exaggerated politeness may be used sparingly as irony, but must sound contemporary and must not turn into old-fashioned “하쇼/구먼/일세/자네” speech.
 
 G. TSUNDERE-LIKE CONCERN
-- He often hides concern behind irritation, practical orders, minimizing language or complaints about the inconvenience caused to him.
+- TARGET often hides concern behind irritation, practical orders, minimizing language or complaints about the inconvenience caused to TARGET.
 - Preserve actual care without inventing a confession. “Are you hurt?” may become a rough inspection or irritated demand for an answer, but cannot invent a new injury, touch, promise or romantic statement.
 - Do not use syrupy reassurance, parental praise, “말 잘 들었어,” or excessive softening. The useful action/order can carry the concern.
-- Concern may coexist with a curse aimed at the situation or his own alarm. Serious concern does not require clean speech.
+- Concern may coexist with a curse aimed at the situation or TARGET's own alarm. Serious concern does not require clean speech.
 
 H. SPEECH-ACT TRANSFORMATION GUIDE
 - COMMAND: identify the required action and urgency. Use a decisive verb, rough particle/ending, possible situation-directed profanity, and at most one fitting afterbeat. Do not add a threat.
 - WARNING: keep the danger proposition explicit. Never replace “dangerous/lethal” with language meaning easy, weak or trivial merely because a vulgar word sounds strong.
 - CONCERN: demand useful information or compliance while masking worry with irritation. Do not invent tenderness or hostility.
-- CONCESSION: he can frame permission as something he is reluctantly allowing or generously “putting up with,” but must preserve duration and conditions exactly.
+- CONCESSION: TARGET can frame permission as something reluctantly allowed or generously “put up with,” but must preserve duration and conditions exactly.
 - REFUSAL: stay blunt and confident; do not invent moral judgment or a different reason.
 - QUESTION: ask what the scene actually needs. Do not automatically add “응?” or turn every question into flirtation.
 - REASSURANCE: minimize the difficulty or mock the danger without denying a real risk stated by the source.
-- SELF-DISCLOSURE: keep the fact, but he may undercut sincerity with a crude aside or shameless framing; do not erase the emotional truth.
+- SELF-DISCLOSURE: keep the fact, but TARGET may undercut sincerity with a crude aside or shameless framing; do not erase the emotional truth.
 
 I. TRANSFORMATION EXAMPLES — LEARN THE MECHANISM, NEVER COPY BLINDLY
 Source intent: “Move. Now.”
@@ -4234,7 +4366,7 @@ Better mechanism: preserve the dry boast and deflection with a compact, brazen c
 
 Source intent: a factual injury report followed by “the rest is bruises and bad luck.”
 Weak: clinical textbook listing with neutral endings.
-Better mechanism: keep every injury fact exact, but let him dismiss his own condition through rough verbs, shameless understatement, a coarse aside or a clipped afterbeat. Do not invent a worse injury or treatment.
+Better mechanism: keep every injury fact exact, but let TARGET dismiss the character's own condition through rough verbs, shameless understatement, a coarse aside or a clipped afterbeat. Do not invent a worse injury or treatment.
 
 Source intent: “You should get some sleep.”
 Weak: a gentle generic recommendation.
@@ -4255,15 +4387,15 @@ J. ABSOLUTE FAILURES
 - HIGH profanity producing mostly clean compatible lines, or producing the identical curse pattern in every line.
 
 K. REFERENCE-CORPUS RHYTHM PROFILE
-- The supplied Kim Hong-jin reference is dominated by short spoken units: commands, blunt answers, clipped factual judgments and brief afterbeats. Preserve that compact impact. Do not inflate every small line into a monologue merely to display personality.
-- Medium and long lines appear when he explains tactical reasoning, argues a case, establishes consequences or corners another person verbally. Even then, organize the speech around decisive predicates and spoken breath groups rather than essay syntax.
+- The supplied CURRENT TARGET CHARACTER reference is dominated by short spoken units: commands, blunt answers, clipped factual judgments and brief afterbeats. Preserve that compact impact. Do not inflate every small line into a monologue merely to display personality.
+- Medium and long lines appear when TARGET explains tactical reasoning, argues a case, establishes consequences or corners another person verbally. Even then, organize the speech around decisive predicates and spoken breath groups rather than essay syntax.
 - Profanity is frequent but unevenly clustered. Rough 처- constructions, hostile references to enemies/obstacles and crude consequence language appear more often than a free-standing “씨발.” Therefore HIGH means pervasive coarse texture, not repeating one famous curse.
 - His mode changes with the scene while remaining recognizably the same person:
   1) ORDINARY CONFLICT: openly irritated, shameless, dismissive, quick to call the complaint or situation ridiculous.
   2) ACTIVE DANGER: joking drops sharply; language becomes cold, exact and imperative. Profanity sharpens urgency but does not obscure instructions.
   3) TEMPORARY SAFETY: dry teasing and brazen understatement return. He acts as if practical care is merely obvious procedure or the listener's inconvenience to manage.
   4) THIRD-PARTY CONFRONTATION: aggression becomes direct and controlled. Curses target the opponent; threats exist only when the source contains them.
-  5) CONCEALED CARE: he checks condition, provides resources or orders rest while sounding annoyed by the need to care. He rarely explains tenderness aloud.
+  5) CONCEALED CARE: TARGET checks condition, provides resources or orders rest while sounding annoyed by the need to care. TARGET rarely explains tenderness aloud.
 - Preserve this mode switch. Do not force playful banter into immediate danger, and do not flatten safe everyday interaction into nonstop tactical barking.
 - Reference-grounded cadence often uses: a blunt first clause; a coarse concrete explanation; then a shorter command, dismissal or consequence. Use this as one available rhythm, not a template for every line.
 - He does not need a verbal wink after every sentence. Confidence can be carried by declarative certainty, an unceremonious verb or refusal to over-explain.
@@ -4321,7 +4453,7 @@ export function buildMadFlashV2ScopedPrompt({
             thirties: 'contemporary 30s', fortiesPlus: 'contemporary 40+ without archaic speech',
         })[settings.developerHongjinAgeBand] || 'context-appropriate contemporary';
         const oppa = ({ off: 'never add', rare: '0–1 fitting use', natural: '1–2 separated fitting uses', often: 'frequent but non-repetitive' })[settings.developerHongjinOppaFrequency] || 'never add';
-        return `\nKIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT
+        return `\nCURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT
 - Voice: sly, shameless, playful, tsundere-like, vulgar and rough without becoming a dated lecher, fake-gentle child handler, theatrical gangster or generic macho man.
 - Reauthoring=${transcreation}; profanity=${profanity}; teasing=${teasing}; vulgarity=${vulgarity}; playfulness=${playfulness}; age=${age}.
 - Build voice into verbs, particles, contractions, endings, timing and information order. A neutral sentence plus a detachable curse fails.
@@ -4334,9 +4466,9 @@ ${madFlashV2HongjinManual({ characterName, userName, profanity: settings.develop
     })() : '';
     const immediateGate = scope === 'target_dialogue'
         ? `FINAL EXECUTION GATE — THIS OVERRIDES ANY BLAND DEFAULT
-- These rows are ONLY ${JSON.stringify(characterName)}'s speech. Do not translate sentence by sentence. Extract the proposition, erase the English line, then author what he would actually say.
+- These rows are ONLY ${JSON.stringify(characterName)}'s speech. Do not translate sentence by sentence. Extract the proposition, erase the English line, then author what CURRENT TARGET CHARACTER would actually say.
 - A clean factual line with ordinary endings FAILS even if semantically correct. A clean line with one detachable curse also FAILS. His verbs, contractions, particles, information order, shameless minimization, rough afterbeat and profanity-shaped rhythm must carry the voice.
-- Injury/exhaustion does not make him clinical or polite. Concern does not make him gentle. Seriousness suppresses forced jokes, NOT roughness, profanity or brazen understatement.
+- Injury/exhaustion does not make TARGET clinical or polite. Concern does not erase TARGET's rough identity. Seriousness suppresses forced jokes, NOT roughness, profanity or brazen understatement.
 - At HIGH profanity, every compatible row must visibly contain an integrated coarse mechanism; across multiple rows, most must contain explicit contemporary profanity or a vulgar construction. Rotate mechanisms instead of repeating one word.
 - Calibrate from these mechanisms, preserving the actual source facts:
   · dry deflection/boast: “저 새끼들 꼬라지를 봤어야 되는데.”
@@ -4348,8 +4480,8 @@ ${madFlashV2HongjinManual({ characterName, userName, profanity: settings.develop
         : scope === 'other_dialogue'
             ? `FINAL NON-TARGET FIREWALL — THIS OVERRIDES TARGET VOICE
 - These rows are NOT spoken by ${JSON.stringify(characterName)}. Zero target-character swagger, profanity density, vulgar verbs, shameless timing or rough afterbeats may leak here.
-- Translate each speaker's actual pragmatic intent, not the dictionary profanity. In a worried injury check, “you look like shit” should become a condition-directed line such as “꼴이 말이 아니네” or “몰골이 엉망이네.” Keep it worried and awkward; do not turn it into explicit obscenity, appearance abuse or target-character swagger.
-- A source swear word does not authorize upgrading this speaker to the target's HIGH profanity setting. If a line sounds like ${JSON.stringify(characterName)}, rewrite it in that speaker's own register before returning.`
+- Preserve every source swear or coarse idiom at comparable pragmatic force in this speaker's own Korean voice; never sanitize it just because this is other_dialogue. In a worried injury check, “you look like shit” may become “너 꼴이 아주 개판이네”: still coarse, still worried, and not a different claim.
+- A source swear authorizes its own force, not the target's HIGH setting. A clean source does not receive added TARGET profanity. If a line sounds like ${JSON.stringify(characterName)}, keep the source profanity but rebuild cadence and vocabulary in that speaker's own register before returning.`
             : scope === 'narration'
                 ? `FINAL KOREAN-PROSE GATE — REJECT CALQUES BEFORE OUTPUT
 - Build every image from a complete natural Korean collocation. Useful mechanisms include: 눈이 어둠에 익다; 군화가 흙바닥을 밟을 때마다 소리가 낮게 울리다; 피로가 뼛속까지 내려앉다; 뱉은 말이 둘 사이에 남다.
@@ -4493,7 +4625,7 @@ function speakerIdentityBlock(speakerIdentity = {}) {
 - TARGET CHARACTER GENDER: ${JSON.stringify(characterGender)}
 - USER: ${JSON.stringify(userName)}
 - USER-role labels are case-insensitive: USER / User / user / any capitalization of "user" / current user / current persona / {{user}} are prompt-rule aliases for the same current USER/PERSONA: ${JSON.stringify(userName)}.
-- TARGET-character role labels are case-insensitive: TARGET CHARACTER / Target Character / target character / CHARACTER / Character / character / CHAR / Char / char / any capitalization of those labels / current character / {{char}} are prompt-rule aliases for the same current TARGET CHARACTER: ${JSON.stringify(characterName)}.
+- TARGET-character role labels are case-insensitive: TARGET CHARACTER / Target Character / target character / CHARACTER / Character / character / CHAR / Char / char / any capitalization of those labels / current character / {{char}} are prompt-rule aliases for the same CURRENT TARGET CHARACTER: ${JSON.stringify(characterName)}.
 - TARGET CHARACTER is the author of the current assistant output, but do not assume every quoted passage inside that output is spoken by them.
 - Infer who speaks each quoted passage from the entire supplied output: subject continuity, adjacent actions, pronouns, speech tags, turn order, and surrounding narration.
 - Classify each quoted passage so TARGET-CHARACTER and USER/NPC/OTHER dialogue can receive different speaker-specific prompts. Apply the TARGET-CHARACTER DIALOGUE PROMPT only to direct dialogue actually spoken by TARGET CHARACTER.
@@ -4731,8 +4863,9 @@ ${promptIdentityAliasBlock(speakerIdentity)}
 TASK
 ${taskRules}
 ${madExclusive && settings?.developerHongjinFlavorEnabled === true
-        ? `- speaker_scope is an absolute row-level firewall. A dialogue row marked speaker_scope="target_dialogue" is confirmed TARGET CHARACTER speech: apply every Kim Hong-jin voice requirement. A row marked speaker_scope="other_dialogue" belongs to USER/NPC/another speaker: prohibit Kim Hong-jin profanity, vulgar verbs, swagger, teasing cadence and self-reference there.
-- Process the rows as one continuous scene for context, but never average or blend their voices. Narration stays Korean-original narration; tagged content keeps its structural role; only target_dialogue receives Kim Hong-jin's voice.`
+        ? `- speaker_scope is an absolute row-level firewall. A dialogue row marked speaker_scope="target_dialogue" is confirmed CURRENT TARGET CHARACTER speech: apply every configured target-voice requirement. A row marked speaker_scope="other_dialogue" belongs to USER/NPC/another speaker: prohibit added TARGET profanity, vulgar verbs, swagger, teasing cadence and self-reference there.
+- SOURCE PROFANITY IS SPEAKER-LOCAL, NOT TARGET-ONLY: preserve profanity/coarse idioms already present in any speaker's source line at comparable Korean force. other_dialogue keeps its own source profanity but never inherits TARGET's extra profanity frequency or cadence; a clean other_dialogue source stays clean.
+- Process the rows as one continuous scene for context, but never average or blend their voices. Narration stays Korean-original narration; tagged content keeps its structural role; only target_dialogue receives the configured CURRENT TARGET CHARACTER voice preset.`
         : ''}
 - Silently check that every segment id is returned exactly once.
 
@@ -5383,7 +5516,7 @@ export function buildHongjinVoiceRewritePrompt({
         current_translation: String(translations.get(segment.id) || ''),
     }));
 
-    return `KIM HONG-JIN — KOREAN-ONLY CHARACTER REAUTHORING
+    return `CURRENT TARGET CHARACTER — KOREAN-ONLY CHARACTER REAUTHORING
 No foreign source text is supplied to this pass. This is deliberate. Do not reconstruct, imagine or ask for the English. Read each Korean draft only as scene evidence, discard its wording, and write from blank what ${JSON.stringify(characterName)} would actually say in Korean.
 
 The Korean draft's length, wording, clause order, sentence count and endings have no authority. A short draft may become a complete spoken command, concession, complaint or invitation when its purpose is clear. Making an already-established speech function explicit is voice realization, not a new event.
@@ -5392,7 +5525,7 @@ MANDATORY PRIVATE REAUTHORING LOOP — EACH LINE
 1. Reduce the line to its contextual speech move, not its words.
 2. Silently create three Korean utterances with different syntax, timing and afterbeats.
 3. Reject every candidate that resembles current_translation's length, order, fragment shape or neutral diction.
-4. Return only the candidate that most unmistakably sounds like Kim Hong-jin. Never reveal this loop.
+4. Return only the candidate that most unmistakably sounds like CURRENT TARGET CHARACTER. Never reveal this loop.
 
 ABSOLUTE BLAND-DRAFT FAILURE
 - A bare Korean time noun or duration fragment is forbidden when the draft context clearly implies a decision, concession or next action. Write the complete spoken move in character.
@@ -5437,7 +5570,7 @@ Return every id exactly once as strict JSON only.
 ${nameTokenInstruction(nameTokens, speakerIdentity)}
 
 Return exactly:
-{"segments":[{"id":"seg_0001","translation":"김홍진 보이스가 적용된 전체 대사"}]}
+{"segments":[{"id":"seg_0001","translation":"타겟 캐릭터 보이스가 적용된 전체 대사"}]}
 
 KOREAN DRAFT ROWS — the only content input
 ${JSON.stringify(rows)}`;
@@ -5455,7 +5588,7 @@ A. SCENE LEDGER
 
 B. SPEAKER AND DIALOGUE AUDIT
 - Verify each quoted row's confirmed scope. target_dialogue means ${JSON.stringify(characterName)} actually speaks; other_dialogue means USER/NPC/quoted/read/remembered/imitated speech. Never infer speaker from voice alone.
-- Check the listener separately from the speaker. A line can be spoken by TARGET while addressing USER, an NPC, a group, an enemy or himself; voice permissions do not change the listener.
+- Check the listener separately from the speaker. A line can be spoken by TARGET while addressing USER, an NPC, a group, an enemy or TARGET themself; voice permissions do not change the listener.
 - Preserve the speech act. Command, permission, concession, warning, refusal, question, reassurance, mockery and statement are not interchangeable.
 - Check register and relationship continuity across adjacent lines. Repair accidental 존댓말/반말 switching only when the source/context does not establish a switch.
 - Reject invented vocatives, nicknames, confessions, praise, blame, threats, flirtation or jokes.
@@ -5480,13 +5613,13 @@ E. KOREAN ORIGINALITY AUDIT
 - Narration should read as contemporary Korean fiction; direct dialogue should sound speakable aloud. Neither must imitate English sentence length.
 
 F. SCOPE FIREWALL
-- Narration may be intense or colloquial according to its own source voice, but never inherits ${JSON.stringify(characterName)}'s dialogue-only profanity, teasing hooks or crude command cadence merely because he is present.
+- Narration may be intense or colloquial according to its own source voice, but never inherits ${JSON.stringify(characterName)}'s dialogue-only profanity, teasing hooks or crude command cadence merely because TARGET is present.
 - other_dialogue keeps its own speaker personality and cannot be “improved” by importing target voice.
 - tagged_content remains concise metadata/interface text with no character voice.
-${hongjin ? `- target_dialogue must preserve the active Kim Hong-jin mode: ordinary conflict, tactical danger, temporary safety, third-party confrontation or concealed care. Reject a mode mismatch.
+${hongjin ? `- target_dialogue must preserve the active CURRENT TARGET CHARACTER mode: ordinary conflict, tactical danger, temporary safety, third-party confrontation or concealed care. Reject a mode mismatch.
 - Profanity setting=${String(profanity).toUpperCase()}. HIGH requires frequent varied coarse texture across compatible lines, not identical curse repetition. NATURAL requires the set not remain uniformly clean. LOW still preserves source profanity and distinctive rough cadence.
 - Reject generic survival-man barking, dated greasy teasing, parental babying, repetitive “응?/그래그래/~해볼까”, clean prose plus a curse sticker, or jokes that invent a premise.
-- Verify curse target grammatically. USER ${JSON.stringify(userName)} may hear situation-directed profanity but must not become a degrading curse label.` : '- Kim Hong-jin voice is disabled. Reject newly introduced target-specific profanity, vulgarity or teasing.'}
+- Verify curse target grammatically. USER ${JSON.stringify(userName)} may hear situation-directed profanity but must not become a degrading curse label.` : '- CURRENT TARGET CHARACTER voice is disabled. Reject newly introduced target-specific profanity, vulgarity or teasing.'}
 
 G. FORMAT AND PROTECTION AUDIT
 - Preserve each id and return a repair only for that same id. Never merge output rows or move information between them.
@@ -5530,9 +5663,9 @@ CHECK IN THIS ORDER
 1. SPEAKER / ACTOR: correct speaker, listener, actor, target, owner, referent and body part.
 2. MEANING: proposition, speech act, negation, permission/refusal, direction, chronology, number, degree, relationship and emotional direction remain unchanged.
 3. KOREAN: no translationese, malformed/dropped syllable, broken particle, impossible predicate, dangling modifier or locally contradictory sentence.
-4. SCOPE: narration has no character-dialogue leakage; other_dialogue never imitates ${characterName}; target_dialogue alone may use the configured Kim Hong-jin voice.
+4. SCOPE: narration has no character-dialogue leakage; other_dialogue never imitates ${characterName}; target_dialogue alone may use the configured CURRENT TARGET CHARACTER voice.
 5. FORMAT: preserve ids, quotation role, protected tokens, names, numbers, tags, code, macros, URLs, ellipses and layout.
-${hongjin ? `6. KIM HONG-JIN: in target_dialogue only, reject bland generic speech, dated leering, fake-gentle child handling, repeated rhetorical hooks, a neutral line with a detachable curse, or profanity strength=${profanity} being visibly ignored across compatible lines. At high strength most compatible target lines should carry varied rough/profane texture. Repair voice without changing facts, speech act or target of aggression. Profanity may hit the situation/action/obstacle/enemy/self; never make USER ${JSON.stringify(userName)} the cursed object.` : '6. No Kim Hong-jin voice is active. Do not add profanity or character-specific roughness.'}
+${hongjin ? `6. CURRENT TARGET CHARACTER: in target_dialogue only, reject bland generic speech, dated leering, fake-gentle child handling, repeated rhetorical hooks, a neutral line with a detachable curse, or profanity strength=${profanity} being visibly ignored across compatible lines. At high strength most compatible target lines should carry varied rough/profane texture. Repair voice without changing facts, speech act or target of aggression. Profanity may hit the situation/action/obstacle/enemy/self; never make USER ${JSON.stringify(userName)} the cursed object.` : '6. No CURRENT TARGET CHARACTER voice is active. Do not add profanity or character-specific roughness.'}
 
 ${madFlashV2AuditManual({ characterName, userName, profanity, hongjin })}
 
@@ -5573,7 +5706,7 @@ TASK
 - A name at a sentence boundary may legitimately omit a particle in rare literary syntax. Repair it only when the resulting sentence is actually ungrammatical or ambiguous.
 - Prefer the smallest complete correction, but return the entire corrected row.
 - Preserve facts, actor, target, body part, viewpoint, intensity, chronology, names, numbers, quotation status and paragraph role. Add no image, action, motive, emotion or character voice.
-- This is narration only. Never add dialogue, profanity, slang, teasing or Kim Hong-jin voice.
+- This is narration only. Never add dialogue, profanity, slang, teasing or CURRENT TARGET CHARACTER voice.
 - Preserve protected tokens, tags, macros, code, URLs and punctuation exactly.
 - If a flagged row is already valid natural Korean, return no repair for it.
 
@@ -5627,7 +5760,7 @@ ABSOLUTE WORK METHOD
 SCOPE CONTRACT
 - narration: polished but easy contemporary Korean fiction. Prefer concrete natural verbs and Korean information flow. Reject literal sensory collocations, abstract explanation, repeated explicit subjects, translated similes and phrases such as “부드러운 소리를 냈다” or “무뚝뚝하지 않게 말했다” when ordinary Korean would express the moment directly.
 - other_dialogue: genuinely speakable Korean for that speaker. Preserve the actual speech act and social force. Never import ${JSON.stringify(characterName)}'s profanity, slyness or vulgarity. Translate profanity pragmatically; a rude observation must not become a new disaster claim or threat.
-- target_dialogue: confirmed direct speech by ${JSON.stringify(characterName)}. ${hongjin ? 'The Kim Hong-jin authorship contract below is mandatory.' : 'Use natural contemporary Korean without invented character roughness.'}
+- target_dialogue: confirmed direct speech by ${JSON.stringify(characterName)}. ${hongjin ? 'The CURRENT TARGET CHARACTER authorship contract below is mandatory.' : 'Use natural contemporary Korean without invented character roughness.'}
 - tagged_content: preserve tags, attributes, CSS/code, tokens, URLs, emoji, numbers, punctuation and layout exactly; rewrite only visible natural-language text.
 
 KOREAN INTEGRITY — PASS/FAIL
@@ -5640,8 +5773,8 @@ TARGET=${JSON.stringify(characterName)}; USER=${JSON.stringify(userName)}
 TARGET→USER=${register(settings.developerMadKoreanTargetToUserRegister)}
 USER→TARGET=${register(settings.developerMadKoreanUserToTargetRegister)}
 
-${hongjin ? `KIM HONG-JIN AUTHORSHIP — REQUIRED ON EVERY target_dialogue ROW
-- Do not preserve or lightly edit the draft line. Preserve only its proposition, listener, speech act, relationship, emotional direction and scene stakes. Write from blank what Kim Hong-jin himself would actually say in Korean.
+${hongjin ? `CURRENT TARGET CHARACTER AUTHORSHIP — REQUIRED ON EVERY target_dialogue ROW
+- Do not preserve or lightly edit the draft line. Preserve only its proposition, listener, speech act, relationship, emotional direction and scene stakes. Write from blank what the CURRENT TARGET CHARACTER would actually say in Korean.
 - His identity is sly, shameless, playful, tsundere-like, rough, vulgar and casually profane. Build it into verbs, particles, contractions, endings, information order, dry bravado, brusque care, shameless understatement and the final afterbeat. A generic line with a detachable curse fails.
 - Quiet explanation, injury, exhaustion, concern, sincerity and muttering do not disable the voice. Suppress forced comedy only. Concealed concern should become a brusque order, complaint or jab; self-report should sound dismissive or brazen rather than clinical.
 - profanity=${profanity.toUpperCase()}. ${profanity === 'high'
@@ -5715,8 +5848,8 @@ This is one source-aware final gate, not a fresh translation and not a full-manu
 MANDATORY ERROR CHECKS
 0. LOCAL FLAGS: inspect every local_flags entry before all other checks. ROAD_RAMP_MISTRANSLATED_AS_LAMP is always an error in a road/overpass scene and must be repaired. POSSIBLE_NAME_PARTICLE_OR_POSSESSIVE_DAMAGE must be repaired when a name was mistaken for NAME+subject particle or lost its possessive relation. VERIFY_USER_DIRECTED_PROFANITY must be repaired and returned when the actual listener is USER; never return an unchanged flagged USER-directed insult.
 1. ${hongjinEnabled
-        ? `KIM HONG-JIN VOICE DAMAGE: for scope=target_dialogue only, enforce the configured sly, shameless, playful, tsundere-like, rough voice with profanity strength=${JSON.stringify(profanityStrength)}. Repair bland generic dialogue, dated leering, repetitive rhetorical questions, fake-gentle child-handling speech, curse stickers and generic macho drift. At high strength, use varied situation-directed profanity across suitable TARGET rows instead of sanitizing the scene, but never change the proposition merely to insert a curse and never direct demeaning abuse at USER ${JSON.stringify(userName)}. Do not leak this voice into narration or other_dialogue.`
-        : 'KOREAN-ORIGINAL QUALITY: no Kim Hong-jin voice is active. Check only whether the Korean still reads like a literal draft, loses a required speech level, or contains broken/unnatural phrasing. Do not invent roughness, teasing or profanity.'}
+        ? `CURRENT TARGET CHARACTER VOICE DAMAGE: for scope=target_dialogue only, enforce the configured sly, shameless, playful, tsundere-like, rough voice with profanity strength=${JSON.stringify(profanityStrength)}. Repair bland generic dialogue, dated leering, repetitive rhetorical questions, fake-gentle child-handling speech, curse stickers and generic macho drift. At high strength, use varied situation-directed profanity across suitable TARGET rows instead of sanitizing the scene, but never change the proposition merely to insert a curse and never direct demeaning abuse at USER ${JSON.stringify(userName)}. Do not leak this voice into narration or other_dialogue.`
+        : 'KOREAN-ORIGINAL QUALITY: no CURRENT TARGET CHARACTER voice is active. Check only whether the Korean still reads like a literal draft, loses a required speech level, or contains broken/unnatural phrasing. Do not invent roughness, teasing or profanity.'}
 2. SEMANTIC POLARITY / CORE PREDICATE: preserve danger vs safety, easy vs difficult, weak vs strong, permission vs refusal, affirmation vs negation, command vs suggestion, life vs death, and every factual evaluation. Profanity may color delivery but may not replace or reverse the proposition.
    - “The front's a death trap!” → “정문으로 가면 뒤져!” or “정문은 씨발, 죽으러 가는 길이야!”
    - “정문은 좆밥이야” is WRONG because 좆밥 means easy/weak and reverses the warning.
@@ -5725,8 +5858,8 @@ MANDATORY ERROR CHECKS
 5. LOCAL CONTRADICTION: adjacent Korean sentences must not simultaneously call the same route easy/safe and lethal/dangerous unless the source itself does.
 6. BROKEN KOREAN: repair missing syllables/words, dropped particles, malformed attachments and impossible phrases such as “홍진 속도를 늦추지 않았다”, “담은 발소리가 들렸다”, “홍진 멈췄다”, “각으로 문을 걷어찼다”, “팔치로 의 턱”, “목을 뼈까지 라버렸다”, “팔을 아채”, “담은이은/담은이을”, or a valid word accidentally shortened into another word. Every overt name and noun phrase must carry the particle or possessive marker required by its actual Korean role. Prefer the smallest plain grammatical correction.
 7. CANONICAL NAMES — LOCAL REPAIR ONLY: TARGET=${JSON.stringify(characterName)}; USER=${JSON.stringify(userName)}; LOCKED=${JSON.stringify(lockedKoreanNames)}. Apply this generically to every listed Korean name and an already-established shorter given-name form, not only the examples. Do not invent the affectionate NAME+이 form before another particle. For a consonant-final name, use forms such as “담은을/민철을”, not “담은이를/민철이를”. Distinguish a normal subject particle from a vocative: narration may use “담은이 파이프를...”, but direct “Dam-eun!” must be “담은아!” or “담은!”, never “담은이!”. Preserve valid comitatives such as “담은이랑”. When fixing a name, edit only the name and its directly attached suffix; preserve all surrounding profanity, wording, endings, rhythm and characterization exactly.
-8. VOICE FIREWALL: ${hongjinEnabled ? 'preserve authorized Kim Hong-jin roughness and diverse situation-directed profanity. Do not sanitize, neutralize or remove a valid curse merely because it is vulgar. Never add USER-directed profanity or misogynistic wording while repairing.' : 'Kim Hong-jin voice is OFF. Preserve the source and established speaker voice without importing Kim-specific roughness or profanity.'}
-9. SCOPE: Kim Hong-jin dialogue voice belongs only to confirmed target-character direct dialogue. Remove accidental character-vulgarity leakage from narration only when it is clearly unsupported by the source/narrative style.
+8. VOICE FIREWALL: ${hongjinEnabled ? 'preserve authorized CURRENT TARGET CHARACTER roughness and diverse situation-directed profanity. Do not sanitize, neutralize or remove a valid curse merely because it is vulgar. Never add USER-directed profanity or misogynistic wording while repairing.' : 'CURRENT TARGET CHARACTER voice is OFF. Preserve the source and established speaker voice without importing target-character-specific roughness or profanity.'}
+9. SCOPE: CURRENT TARGET CHARACTER dialogue voice belongs only to confirmed target-character direct dialogue. Remove accidental character-vulgarity leakage from narration only when it is clearly unsupported by the source/narrative style.
 10. Preserve every protected token, ellipsis sequence, number, tag, HTML/CSS/code block, macro, URL, emoji and layout exactly. Never invent a new action, sensation, injury, threat, motive, joke or fact.
 
 SPARSE OUTPUT CONTRACT
@@ -6042,8 +6175,8 @@ ${outputRule}
         ? (inDialogue
             ? (resolvedScope === 'target_dialogue'
                 ? 'confirmed direct dialogue spoken by TARGET CHARACTER. Apply the configured TARGET voice.'
-                : 'confirmed USER/NPC/OTHER dialogue. Never apply KIM HONG-JIN FLAVOR, its profanity strength, vulgar verbs, swagger, teasing rhythm, or examples.')
-            : 'narration. Preserve it as narration and do not apply KIM HONG-JIN FLAVOR.')
+                : 'confirmed USER/NPC/OTHER dialogue. Never apply CURRENT TARGET CHARACTER FLAVOR, its profanity strength, vulgar verbs, swagger, teasing rhythm, or examples.')
+            : 'narration. Preserve it as narration and do not apply CURRENT TARGET CHARACTER FLAVOR.')
         : (inDialogue
             ? 'inside or touches dialogue. Always apply the all-dialogue prompt; infer its speaker from ORIGINAL SOURCE and additionally apply the target-character dialogue prompt only if TARGET CHARACTER is actually speaking.'
             : 'narration: do not apply either dialogue prompt.')}
@@ -6164,7 +6297,7 @@ ${madExclusive ? `- Under MAD KOREAN EXCLUSIVE ENGINE, do not merely swap synony
 - Never use a configured banned Korean word.
 ${madExclusive
         ? `- speaker_scope is already resolved by the extension. Never infer or change it from the row's current wording.
-- Apply KIM HONG-JIN FLAVOR only to speaker_scope="target_dialogue". For speaker_scope="other_dialogue", prohibit all TARGET profanity strength, vulgar verbs, swagger and teasing rhythm. For speaker_scope="narration", prohibit every dialogue voice.
+- Apply CURRENT TARGET CHARACTER FLAVOR only to speaker_scope="target_dialogue". For speaker_scope="other_dialogue", prohibit all TARGET profanity strength, vulgar verbs, swagger and teasing rhythm. For speaker_scope="narration", prohibit every dialogue voice.
 - If this batch mixes scopes, the conservative shared baseline intentionally excludes TARGET voice; obey each row's speaker_scope and never spread style between rows.`
         : `- For a row whose in_dialogue value is true, apply the all-dialogue prompt and apply the target-character dialogue prompt only when TARGET CHARACTER is the speaker.
 - For a row whose in_dialogue value is false, do not apply either dialogue prompt.`}

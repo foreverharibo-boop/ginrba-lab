@@ -59,7 +59,7 @@ for (const mode of [
         });
         if (mad) {
             assert.match(scoped, /MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION/);
-            assert.match(scoped, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+            assert.match(scoped, /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
             assert.match(scoped, /NATURAL — compatible multi-line dialogue must not stay uniformly clean/);
             assert.match(scoped, /A neutral sentence plus a detachable curse fails/);
             assert.match(scoped, /Never turn USER/);

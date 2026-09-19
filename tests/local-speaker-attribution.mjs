@@ -91,7 +91,7 @@ const prompt = buildOutputPrompt(segmented, {
 }, '', identity, null, scopes);
 assert.match(prompt, /"speaker_scope":"target_dialogue"/);
 assert.match(prompt, /speaker_scope is an absolute row-level firewall/);
-assert.match(prompt, /prohibit Kim Hong-jin profanity/);
+assert.match(prompt, /prohibit added TARGET profanity/);
 
 const index = fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8');
 assert.match(index, /inferLocalTargetDialogueScopes\(segmented, speakerIdentity\)/);

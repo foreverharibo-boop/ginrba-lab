@@ -33,7 +33,7 @@ function assertRestoredHongjinOutputGate(prompt, dataMarker, label) {
     assert.equal(prompt.split(marker).length - 1, 0, `${label}: restored primary path avoids a duplicate Mad final gate`);
     assert.equal(prompt.split(hongjinMarker).length - 1, 1, `${label}: Hongjin gate count`);
     assert.ok(prompt.lastIndexOf(hongjinMarker) > prompt.lastIndexOf(dataMarker), `${label}: Hongjin gate must follow source data`);
-    assert.match(prompt, /RESTORED 0\.5\.84 KIM HONG-JIN AUTHORING PATH/);
+    assert.match(prompt, /TARGET CHARACTER AUTHORING PATH/);
 }
 
 let routeChecks = 0;
@@ -75,7 +75,7 @@ for (const mode of [
             if (scope === 'target_dialogue') assert.match(scoped, /CONFIRMED .* DIALOGUE ONLY/);
             if (scope === 'other_dialogue') assert.match(scoped, /CONFIRMED USER\/NPC\/OTHER DIALOGUE ONLY/);
             if (scope === 'tagged_content') assert.match(scoped, /VISIBLE TEXT INSIDE TAGS ONLY/);
-            if (hongjin && scope === 'target_dialogue') assert.match(scoped, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+            if (hongjin && scope === 'target_dialogue') assert.match(scoped, /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
         }
 
         const narrationTranslation = '그는 계단참을 건넜다.';

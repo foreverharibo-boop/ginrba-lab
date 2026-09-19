@@ -53,8 +53,7 @@ assert.match(index, /직역본을 최종 결과로 채택하지 않습니다/);
 const translateStart = index.indexOf('async function translateOutputText(');
 const translateEnd = index.indexOf('function inputIdentitySpellingContext(', translateStart);
 const body = index.slice(translateStart, translateEnd);
-const voiceGuard = body.lastIndexOf('if (!madKoreanExclusiveMode())', body.indexOf('await runHongjinVoiceRewrite('));
-assert.ok(voiceGuard > body.indexOf('await runExperimentalQualityAudit('));
-assert.ok(body.indexOf('await runHongjinVoiceRewrite(') > voiceGuard);
+assert.doesNotMatch(body, /await runHongjinVoiceRewrite\(/);
+assert.match(body, /noModelFollowups: singlePassFlavorMode\(\) \? true/);
 
-console.log('PASS: Mad+Hongjin uses local identity/speaker routing without an attribution request; legacy standalone Hongjin rewrite remains available.');
+console.log('PASS: flavor modes use local identity/speaker routing and primary-request voice authoring without a source-less follow-up rewrite.');

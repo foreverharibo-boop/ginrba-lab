@@ -22,7 +22,7 @@ const build = (profanity = 'high', scope = 'target_dialogue') => core.buildScope
 });
 
 const prompt = build();
-assert.match(prompt, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+assert.match(prompt, /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
 assert.match(prompt, /Never turn USER/);
 assert.match(prompt, /situation, urgency, obstacle, enemy, self or free emotion/);
 assert.match(prompt, /rough teasing and blunt criticism remain allowed/);
@@ -43,7 +43,7 @@ assert.match(natural, /must not stay uniformly clean/);
 assert.match(high, /most compatible lines/);
 
 for (const scope of ['narration', 'other_dialogue', 'tagged_content']) {
-    assert.doesNotMatch(build('high', scope), /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+    assert.doesNotMatch(build('high', scope), /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
 }
 assert.doesNotMatch(core.buildInputPrompt('안녕하세요.', {
     ...defaults,

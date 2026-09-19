@@ -96,6 +96,7 @@ for(const row of requests){
 Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFlavorEnabled:true,developerMinimalPromptEnabled:false,developerOutputSplitCount:3});
 let planned=0,classified=0,audited=0,integratedRewritten=0;
 const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
+ singlePassFlavorMode:()=>settings.developerMadKoreanOutputEnabled===true||settings.developerHongjinFlavorEnabled===true,
  normalizedCharacterNameLocks:()=>[{source:'Hong-jin',target:'홍진'}],
  localMadHongjinIdentityNameLocks:()=>[],
  planRepeatedRoleTermLocks:async s=>{planned++;assert.equal(s.segments.length,segmented.segments.length);return [];},

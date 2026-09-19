@@ -45,7 +45,7 @@ for (const mode of [
         developerHongjinVulgarity: 'open',
         developerHongjinPlayfulness: 'high',
     });
-    assert.match(hongjin, /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);
+    assert.match(hongjin, /CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT/);
     assert.match(hongjin, /Reauthoring=maximum/i);
     assert.match(hongjin, /Vary coarse mechanisms/i);
     assert.match(hongjin, /most compatible lines/i);
@@ -65,7 +65,7 @@ const narration = core.buildScopedOutputPrompt({
     scope: 'narration',
     speakerIdentity: identity,
 });
-assert.ok(!narration.includes('KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT'));
+assert.ok(!narration.includes('CURRENT TARGET CHARACTER VOICE — PRIMARY WRITING REQUIREMENT'));
 checks++;
 
 console.log(`PASS: ordinary translation keeps source-force fidelity while Mad/Hongjin alone receive flexible surface intensity across normal, compact, and extreme routes (${checks} checks).`);

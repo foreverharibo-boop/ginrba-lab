@@ -60,9 +60,8 @@ assert.match(voicePrompt, /"teasing":"active"/);
 const translateStart = index.indexOf('async function translateOutputText(');
 const translateEnd = index.indexOf('function inputIdentitySpellingContext(', translateStart);
 const translateBody = index.slice(translateStart, translateEnd);
-assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') >= 0);
-assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') > translateBody.indexOf('await runMadKoreanTargetedAudit('));
-assert.ok(translateBody.indexOf('await runHongjinVoiceRewrite(') > translateBody.indexOf('await runExperimentalQualityAudit('));
-assert.ok(translateBody.lastIndexOf('if (!madKoreanExclusiveMode())', translateBody.indexOf('await runHongjinVoiceRewrite(')) >= 0);
+assert.doesNotMatch(translateBody, /await runHongjinVoiceRewrite\(/);
+assert.match(translateBody, /source-less voice rewrite is deliberately not called/);
+assert.match(translateBody, /noModelFollowups: singlePassFlavorMode\(\) \? true/);
 
-console.log('PASS: ordinary E→K stays neutral and delegates localization; English-character taste remains separate; source-less Hongjin rewrite is excluded from Mad Korean.');
+console.log('PASS: ordinary E→K stays neutral; both flavor modes use one primary pass and exclude the source-less Hongjin follow-up rewrite.');

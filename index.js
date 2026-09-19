@@ -56,7 +56,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.121';
+const EXTENSION_VERSION = '0.5.122';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -390,6 +390,10 @@ settings.developerMadKoreanUserToTargetRegister = DEVELOPER_MAD_KOREAN_REGISTER_
 
 function madKoreanExclusiveMode() {
     return settings.developerMadKoreanOutputEnabled === true;
+}
+
+function singlePassFlavorMode() {
+    return madKoreanExclusiveMode() || settings.developerHongjinFlavorEnabled === true;
 }
 
 settings.developerHongjinTranscreation = DEVELOPER_HONGJIN_TRANSCREATION_OPTIONS.some(option => option.value === settings.developerHongjinTranscreation)
@@ -3037,7 +3041,10 @@ function notifyFallbackUsed(profileId) {
 async function sendWithRetry(prompt, options = {}) {
     const transientDelays = [3000, 5000, 8000, 12000, 18000];
     const generalDelays = [800, 1200, 1800, 2600, 4000];
-    const maxRetries = 5;
+    // Mad Korean is intentionally a single-pass model path. A slow retry can
+    // cost more than the original Flash translation and often returns no
+    // better prose, so one selected split equals exactly one provider call.
+    const maxRetries = options.noModelFollowups === true ? 0 : 5;
     const token = Symbol('verba-deep-translation-retry');
     const outerSignal = options.signal || null;
     const controller = new AbortController();
@@ -3075,7 +3082,7 @@ async function sendWithRetry(prompt, options = {}) {
                 // only temporary server/network/quota errors use B/C profiles.
                 // But the active profile itself is retried for EVERY non-abort
                 // failure, as requested.
-                if (profiles.fallbacks.length && fallbackEligibleError(primaryError)) {
+                if (options.noModelFollowups !== true && profiles.fallbacks.length && fallbackEligibleError(primaryError)) {
                     for (const fallback of profiles.fallbacks) {
                         console.warn(
                             `[긴르바 실험실] 현재 선택 프로필 실패 — 프로필 ${fallback.slot} ${profileDisplayName(fallback.id)}(으)로 임시 전환`,
@@ -3150,7 +3157,7 @@ function collectPartialSegmentTranslations(raw, expectedSegments) {
 }
 
 async function requestSegments(prompt, expectedSegments, options = {}) {
-    const maxRetries = 5;
+    const maxRetries = options.noModelFollowups === true ? 0 : 5;
     const parseRetryDelays = [500, 700, 1000, 1400, 2000];
     const completed = new Map();
     let pending = [...(expectedSegments || [])];
@@ -3292,7 +3299,7 @@ Use {"repairs":[]} when no correction is needed. Do not return explanations, mar
     });
 }
 async function requestSelectionCandidates(prompt, options = {}) {
-    const maxRetries = 5;
+    const maxRetries = options.noModelFollowups === true ? 0 : 5;
     const parseRetryDelays = [500, 700, 1000, 1400, 2000];
     let lastError;
 
@@ -3442,7 +3449,7 @@ function segmentContainsRoleTerm(segment, terms) {
 }
 
 async function planRepeatedRoleTermLocks(segmented, options = {}) {
-    if (madKoreanExclusiveMode()) return [];
+    if (singlePassFlavorMode()) return [];
     const terms = repeatedRoleTerms(segmented?.segments);
     if (!terms.length) return [];
 
@@ -3515,7 +3522,7 @@ function protectedTokensIntact(previous, next) {
 }
 
 async function repairRepeatedRoleTermConsistency(segmented, translations, options = {}) {
-    if (madKoreanExclusiveMode()) return;
+    if (singlePassFlavorMode()) return;
     // Unlike the pre-translation lock (which handles exact repeated source terms),
     // this final pass also compares different role/title words that may point to
     // the same person, e.g. manager -> team lead. If context confirms the same
@@ -4022,6 +4029,11 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
         localScopes[segment.id] === 'target_dialogue' ? 'target_dialogue' : 'other_dialogue',
     ]));
 
+    // Flavor modes already have a deterministic scene-local resolver. Keep
+    // speaker isolation local so enabling the target voice never adds a
+    // classifier request before the actual translation.
+    if (singlePassFlavorMode()) return scopes;
+
     // Mad Korean + Hong-jin uses the local scene resolver and sends its
     // per-row scope labels inside the two mixed primary requests. Do not add a
     // separate classifier request: it both delayed Flash and detached dialogue
@@ -4345,12 +4357,24 @@ async function repairProtectedTokenIntegrity(segmented, translations, options = 
     if (!invalid.length) return;
     const started = performance.now();
     const diagnostic = recordProtectedRecovery(invalid, segmented, translations, options);
-    const localRepair = repairProtectedTokenIntegrityLocally(segmented, translations);
+    const singlePass = madKoreanExclusiveMode() || options.noModelFollowups === true;
+    const localRepair = repairProtectedTokenIntegrityLocally(segmented, translations, {
+        force: singlePass,
+    });
     invalid = localRepair.remaining;
     if (!invalid.length) {
         finishProtectedRecovery(diagnostic, '내부 복구 완료', started, 0, invalid, segmented, translations);
-        console.info(`[긴르바 실험실] 보호 이름 표식 내부 복구 완료: ${localRepair.restoredNameTokens + localRepair.normalizedExcessNameTokens}개`);
+        const repairedCount = localRepair.restoredNameTokens
+            + localRepair.normalizedExcessNameTokens
+            + (localRepair.restoredProtectedTokens || 0)
+            + (localRepair.normalizedExcessProtectedTokens || 0);
+        console.info(`[긴르바 실험실] 보호 표식 내부 복구 완료: ${repairedCount}개 · AI 요청 0회`);
         return;
+    }
+    if (singlePass) {
+        const error = new Error(`보호 표식을 내부에서 복구하지 못했습니다: ${invalid.map(row => row.id).join(', ')}`);
+        finishProtectedRecovery(diagnostic, '내부 복구 실패', started, 0, invalid, segmented, translations, error);
+        throw error;
     }
     let attempts = 0;
     const maxAttempts = settings.developerMadKoreanOutputEnabled === true ? 1 : 5;
@@ -4721,16 +4745,32 @@ async function runHongjinVoiceRewrite({
 function applyMadNarrationDeterministicRepairs(segmented, translations, speakerScopes) {
     let changed = 0;
     for (const segment of segmented?.segments || []) {
-        if (outputScopeForSegment(segment, speakerScopes) !== 'narration') continue;
+        const outputScope = outputScopeForSegment(segment, speakerScopes);
+        if (!['narration', 'tagged_content'].includes(outputScope)) continue;
         const source = String(segment.text || '');
         const before = String(translations.get(segment.id) || '');
         if (!before.trim()) continue;
+
+        if (outputScope === 'tagged_content') {
+            const after = before
+                .replace(/서울\s+용산\s+군(?:사)?\s+초소/gu, '서울 용산 군 검문소')
+                .replace(/용산\s+군(?:사)?\s+초소/gu, '용산 군 검문소')
+                .replace(/(?:야전\s+)?의무\s+천막/gu, '야전 의무 텐트');
+            if (after !== before) {
+                translations.set(segment.id, after);
+                changed += 1;
+            }
+            continue;
+        }
 
         let after = before
             .replace(/깊(?:고|은)\s*,?\s*갈리(?:는|던)\s*피로/gu, '무겁고 지독한 피로')
             .replace(/눈이\s+어둠에\s+적응하기를\s+기다렸(?:다|었다)/gu, '어둠에 눈이 익기를 기다렸다')
             .replace(/(?:세상|세계)(은|는|이|가)\s+부드럽고\s+잿빛으로/gu, '세상이 흐릿한 잿빛으로')
-            .replace(/접이식\s*(?=[,.!?…。？！]|$)/gu, '접이식 의자');
+            .replace(/접이식\s*(?=[,.!?…。？！]|$)/gu, '접이식 의자')
+            .replace(/무뚝뚝하지\s+않(?:은|게)\s+(?:어조|투|목소리)로/gu, '그리 매몰차지 않은 투로')
+            .replace(/손가락이\s+폈다\s+오므라들었다\s+접혔다/gu, '손가락이 오므라들었다 펴지기를 반복했다')
+            .replace(/검붉은\s+흙(?:먼지|자국)?/gu, match => match.replace('검붉은', '검은'));
 
         if (/\b(?:car|vehicle)\s+(?:wreck|crash)\b/iu.test(source)) {
             after = after.replace(/폐차\s*사고/gu, '교통사고');
@@ -4739,10 +4779,23 @@ function applyMadNarrationDeterministicRepairs(segmented, translations, speakerS
             after = after.replace(/가늘고\s+앙상한\s+울음/gu, '가늘고 여린 울음');
         }
         if (/\bcots?\b/iu.test(source)) {
-            after = after.replace(/들것\s*침대/gu, '간이침대');
+            after = after
+                .replace(/들것\s*침대/gu, '간이침대')
+                .replace(/구급\s*침대/gu, '야전침대');
         }
         if (/\bknuckles?\b/iu.test(source)) {
             after = after.replace(/갈라진\s+손등/gu, '갈라진 손마디');
+        }
+        if (/\b(?:boots?|shoes?)\b[^.!?]{0,100}\b(?:sound|sounds|soft)\b/iu.test(source)) {
+            after = after.replace(
+                /((?:그녀의\s+)?(?:부츠|군화))가\s+(.{1,80}?)\s+(?:낮은|나직한|부드러운)\s+소리가\s+(?:났|울렸)다/gu,
+                '$2 $1 소리가 나직이 울렸다',
+            );
+        }
+        if (/\b(?:stitches?|gauze|eyebrow)\b/iu.test(source)) {
+            after = after
+                .replace(/눈썹\s*위(?:쪽)?이\s+둔하게\s+당기는\s+선\s*하나가\s+(?:이어져\s+)?있었다/gu, '눈썹 위의 실밥이 둔하게 당겼다')
+                .replace(/눈썹\s*위를?\s+따라\s+둔하게\s+당기는\s+선(?:이|이었다)?/gu, '눈썹 위에서 둔하게 당기는 실밥');
         }
 
         if (after !== before) {
@@ -4818,12 +4871,12 @@ async function runMadNarrationMicroAudit({
         translations,
         speakerScopes,
     );
-    // In the combined Mad Korean + Hong-jin path the primary mixed prompt is
-    // the author pass. Keep deterministic repairs, but do not turn a clean
-    // two-request translation into a third AI round merely for stylistic QA.
-    if (settings.developerHongjinFlavorEnabled === true) {
-        return { checked: 0, changed: localChanged, requested: 0, skipped: 'mixed-primary-author-pass' };
-    }
+    // The primary request is the author pass. Quality checks after it are
+    // deterministic only: never turn a one/two-split Flash translation into a
+    // slower model-review round.
+    return { checked: 0, changed: localChanged, requested: 0, skipped: 'local-only-single-pass' };
+    /* istanbul ignore next -- retained below only as historical reference for
+       non-shipping test extraction; the early return above is authoritative. */
     const candidates = madNarrationLocalAuditCandidates(
         segmented,
         translations,
@@ -4950,13 +5003,11 @@ async function runMadKoreanIntegratedRewrite({
         return { checked: 0, changed: 0 };
     }
 
-    // Mad Korean + Hong-jin is already authored in the primary mixed-scene
-    // batches with a row-level speaker firewall. A second integrated rewrite
-    // adds latency and can blur those speaker boundaries, so skip it here.
-    // Mad Korean without the character flavor may still use this pass.
-    if (settings.developerHongjinFlavorEnabled === true) {
-        return { checked: 0, changed: 0, skipped: 'mixed-primary-authoring' };
-    }
+    // The primary Mad-Korean request is already the final authoring pass.
+    // Never call the model again for rewriting, whether the target-character
+    // flavor preset is on or off.
+    return { checked: 0, changed: 0, skipped: 'primary-authoring-single-pass' };
+    /* istanbul ignore next -- legacy implementation intentionally unreachable. */
 
     const candidates = (segmented.segments || []).map(segment => ({
         ...segment,
@@ -5026,7 +5077,7 @@ async function runExperimentalQualityAudit({
     speakerIdentity,
     options,
 }) {
-    if (madKoreanExclusiveMode() || !settings.developerMode || !settings.qualityAuditEnabled) {
+    if (singlePassFlavorMode() || !settings.developerMode || !settings.qualityAuditEnabled) {
         return { checked: 0, changed: 0 };
     }
 
@@ -5195,7 +5246,7 @@ function mergedNameLocks(explicitLocks = [], inferredLocks = []) {
 }
 
 function localMadHongjinIdentityNameLocks(source, speakerIdentity = {}) {
-    if (!(madKoreanExclusiveMode() && settings.developerHongjinFlavorEnabled === true)) return [];
+    if (settings.developerHongjinFlavorEnabled !== true) return [];
     const text = String(source || '');
     const characterName = String(
         speakerIdentity.characterName ?? speakerIdentity.sourceCharacterName ?? '',
@@ -5212,10 +5263,11 @@ function localMadHongjinIdentityNameLocks(source, speakerIdentity = {}) {
         }
     };
 
-    // This flavor is explicitly Kim Hong-jin-specific. Resolve its common
-    // Latin spellings locally instead of spending an AI call on a two-name
-    // matching task. Full-name source forms remain full names; given-name
-    // forms remain given names.
+    // The preset voice always targets the current character. When that current
+    // character is Hong-jin, resolve his and Dam-eun's common Latin spellings
+    // locally instead of spending an AI call on a two-name matching task.
+    // Full-name source forms remain full names; given-name forms remain given
+    // names. Other target characters remain governed by speakerIdentity.
     if (/(?:김)?홍진/u.test(characterName)) {
         addMatches(/(?<![A-Za-z])(?:Kim[\s-]+)?Hong[\s-]?jin(?![A-Za-z])/giu, sourceName => (
             /^Kim[\s-]+/iu.test(sourceName) ? '김홍진' : '홍진'
@@ -5298,7 +5350,7 @@ async function translateOutputText(source, options = {}) {
     const localMadNameLocks = localMadHongjinIdentityNameLocks(source, initialSpeakerIdentity);
     const inferredNameLocks = localMadNameLocks.length
         ? localMadNameLocks
-        : madKoreanExclusiveMode() && settings.developerHongjinFlavorEnabled === true
+        : singlePassFlavorMode()
             ? []
             : await inferIdentityNames(source, initialSpeakerIdentity, options);
     const characterNameLocks = inferredNameLocks.length
@@ -5311,7 +5363,13 @@ async function translateOutputText(source, options = {}) {
             userName: initialSpeakerIdentity.sourceUserName ?? initialSpeakerIdentity.userName,
         }, characterNameLocks)
         : initialSpeakerIdentity;
-    options = { ...options, speakerIdentity };
+    options = {
+        ...options,
+        speakerIdentity,
+        // One split = one model call. Post-translation checks and protection
+        // recovery stay inside the extension in Mad-Korean mode.
+        noModelFollowups: singlePassFlavorMode() ? true : options.noModelFollowups,
+    };
     const initialSegmented = inferredNameLocks.length
         ? segmentSource(source, characterNameLocks)
         : explicitSegmented;
@@ -5332,7 +5390,7 @@ async function translateOutputText(source, options = {}) {
         stage: options.stage || 'output-translation',
     }));
 
-    if (!madKoreanExclusiveMode()) {
+    if (!singlePassFlavorMode()) {
         for (let repairAttempt = 0; repairAttempt < 5; repairAttempt += 1) {
             const invalid = segmented.segments.filter(segment =>
                 findBannedWords(translations.get(segment.id), settings).length,
@@ -5369,7 +5427,7 @@ async function translateOutputText(source, options = {}) {
     // Validate against the original protected source, not merely against the
     // previous repair result. A missing NAME token can otherwise survive every
     // post-processing pass and only fail during final assembly.
-    if (!madKoreanExclusiveMode()) {
+    if (!singlePassFlavorMode()) {
         await repairProtectedTokenIntegrity(segmented, translations, {
             ...options,
             speakerIdentity,
@@ -5420,28 +5478,18 @@ async function translateOutputText(source, options = {}) {
         options,
     });
 
-    // Mad Flash V2 performs at most one selective recovery round, and only
-    // after the single source-aware audit has identified/fixed writing errors.
-    if (madKoreanExclusiveMode()) {
+    // Flavor modes are single-pass. Detect problems locally; do not ask the
+    // model to review, repair, or regenerate its own translation.
+    if (singlePassFlavorMode()) {
         const banned = segmented.segments.filter(segment =>
             findBannedWords(translations.get(segment.id), settings).length,
         );
         if (banned.length) {
-            await repairSegmentsByOutputScope({
-                invalid: banned, segmented, translations, speakerScopes,
-                options: { ...options, speakerIdentity },
-                buildPrompt: buildBannedRepairPrompt,
-                stage: 'mad-final-banned-recovery',
-            });
+            console.warn('[긴르바 실험실] 내부 검수에서 금지어가 감지되었습니다. AI 재요청 없이 현재 결과를 검사합니다.', banned);
         }
         const untranslated = findUntranslatedSegments(segmented.segments, translations, settings, speakerScopes);
         if (untranslated.length) {
-            await repairSegmentsByOutputScope({
-                invalid: untranslated, segmented, translations, speakerScopes,
-                options: { ...options, speakerIdentity },
-                buildPrompt: buildUntranslatedRepairPrompt,
-                stage: 'mad-final-untranslated-recovery',
-            });
+            console.warn('[긴르바 실험실] 내부 검수에서 미번역 의심 구간이 감지되었습니다. AI 재요청 없이 현재 결과를 유지합니다.', untranslated);
         }
         await repairProtectedTokenIntegrity(segmented, translations, {
             ...options,
@@ -5458,23 +5506,13 @@ async function translateOutputText(source, options = {}) {
         options,
     });
 
-    // Mad Korean's source-aware audit is already the final voice/meaning gate.
-    // Do not follow it with the old source-less Hong-jin reauthoring pass,
-    // which could swap speakers or invent actions. Keep that legacy pass only
-    // for Hong-jin flavor used without Mad Korean.
-    if (!madKoreanExclusiveMode()) {
-        await runHongjinVoiceRewrite({
-            segmented,
-            translations,
-            speakerScopes,
-            speakerIdentity,
-            options,
-        });
-    }
+    // The target-character voice is authored in the primary request. The old
+    // source-less voice rewrite is deliberately not called: it cost extra
+    // requests and could leak the target cadence into another speaker.
 
-    // A sparse audit may invoke a downstream repair prompt. Re-run the local
-    // Mad-name surface repair once so that the final repair response cannot
-    // reintroduce doubled particles or a subject-form vocative.
+    // Re-run the local Mad-name surface repair after all deterministic checks
+    // so final assembly cannot retain doubled particles or a subject-form
+    // vocative.
     if (madKoreanExclusiveMode()) {
         for (const [id, translation] of translations) {
             const sourceSegment = segmented.segments.find(segment => segment.id === id) || {};
@@ -5623,7 +5661,12 @@ function outputSpeakerIdentity(message) {
 async function outputSpeakerIdentityForSource(source, message, options = {}) {
     const identity = outputSpeakerIdentity(message);
     const explicitNameLocks = normalizedCharacterNameLocks();
-    const inferredNameLocks = await inferredPrimaryIdentityNameLocks(source, identity, options);
+    const localFlavorLocks = localMadHongjinIdentityNameLocks(source, identity);
+    const inferredNameLocks = localFlavorLocks.length
+        ? localFlavorLocks
+        : singlePassFlavorMode()
+            ? []
+            : await inferredPrimaryIdentityNameLocks(source, identity, options);
     if (!inferredNameLocks.length) return identity;
     const nameLocks = mergedNameLocks(explicitNameLocks, inferredNameLocks);
     return resolveOutputSpeakerIdentity({
@@ -9383,6 +9426,7 @@ async function retranslateSelectionBundle() {
         const result = await requestSegments(prompt, expected, {
             signal: controller.signal,
             stage: 'multi-selection-retranslation',
+            noModelFollowups: singlePassFlavorMode(),
         });
         for (const row of selections) {
             result.set(
@@ -9393,7 +9437,7 @@ async function retranslateSelectionBundle() {
         const unchangedIds = selections
             .filter(row => sameRetranslationWording(result.get(row.id), row.selected))
             .map(row => row.id);
-        if (unchangedIds.length) {
+        if (!singlePassFlavorMode() && unchangedIds.length) {
             const changedPrompt = `${prompt}\n\nMANDATORY BUNDLE RETRANSLATION CORRECTION
 Your previous response echoed the existing Korean wording for these ids: ${JSON.stringify(unchangedIds)}.
 - Return every required id again in the same JSON schema.
@@ -9414,7 +9458,9 @@ Your previous response echoed the existing Korean wording for these ids: ${JSON.
             const replacement = String(result.get(row.id) || '').trim();
             if (!replacement) throw new Error('묶음 재번역 결과 중 비어 있는 구간이 있습니다.');
             if (sameRetranslationWording(replacement, row.selected)) {
-                throw new Error(`AI가 두 번 모두 기존 번역과 같은 문장을 반환했습니다: ${row.selected.slice(0, 40)}`);
+                throw new Error(singlePassFlavorMode()
+                    ? `AI가 기존 번역과 같은 문장을 반환했습니다. 맛 기능의 빠른 단일 패스에서는 자동 재요청하지 않습니다: ${row.selected.slice(0, 40)}`
+                    : `AI가 두 번 모두 기존 번역과 같은 문장을 반환했습니다: ${row.selected.slice(0, 40)}`);
             }
             const banned = findBannedWords(replacement, settings);
             if (banned.length) throw new Error(`재번역 결과에 금지어가 남았습니다: ${banned.join(', ')}`);
@@ -9633,7 +9679,11 @@ async function retranslateSelection(snapshot) {
     try {
         let replacement = '';
         if (candidateMode) {
-            const received = (await requestSelectionCandidates(prompt, { signal: controller.signal, stage: 'selection-candidates' }))
+            const received = (await requestSelectionCandidates(prompt, {
+                signal: controller.signal,
+                stage: 'selection-candidates',
+                noModelFollowups: singlePassFlavorMode(),
+            }))
                 .map(candidate => repairSourceEllipses(repairUnexpectedProseBreaks(repairKoreanParticleAlternatives(repairOutputIdentityNames(candidate, speakerIdentity)), expected[0]), expected[0]));
             const candidates = received.filter(candidate => {
                 const text = String(candidate || '').trim();
@@ -9651,9 +9701,13 @@ async function retranslateSelection(snapshot) {
             replacement = await requestSelectionCandidateChoice(candidates, snapshot.selected);
             if (replacement === null) return;
         } else {
-            let result = await requestSegments(prompt, expected, { signal: controller.signal, stage: 'selection-retranslation' });
+            let result = await requestSegments(prompt, expected, {
+                signal: controller.signal,
+                stage: 'selection-retranslation',
+                noModelFollowups: singlePassFlavorMode(),
+            });
             replacement = repairKoreanParticleAlternatives(repairOutputIdentityNames(result.get('seg_0000'), speakerIdentity)).trim();
-            if (!replacement || sameRetranslationWording(replacement, snapshot.selected)) {
+            if (!singlePassFlavorMode() && (!replacement || sameRetranslationWording(replacement, snapshot.selected))) {
                 const changedPrompt = `${prompt}\n\nMANDATORY RETRANSLATION CORRECTION
 Your previous replacement was empty or unchanged. Return a genuinely different Korean wording for the selected fragment now.
 - Do not repeat the existing selected fragment verbatim or with whitespace-only changes.
@@ -9667,7 +9721,9 @@ Your previous replacement was empty or unchanged. Return a genuinely different K
                 replacement = repairKoreanParticleAlternatives(repairOutputIdentityNames(result.get('seg_0000'), speakerIdentity)).trim();
             }
             if (sameRetranslationWording(replacement, snapshot.selected)) {
-                throw new Error('AI가 두 번 모두 기존 번역과 같은 문장을 반환하여 변경하지 않았습니다. 요구사항을 더 구체적으로 적어 다시 시도해 주세요.');
+                throw new Error(singlePassFlavorMode()
+                    ? 'AI가 기존 번역과 같은 문장을 반환했습니다. 맛 기능의 빠른 단일 패스에서는 자동 재요청하지 않으므로 요구사항을 더 구체적으로 적어 다시 시도해 주세요.'
+                    : 'AI가 두 번 모두 기존 번역과 같은 문장을 반환하여 변경하지 않았습니다. 요구사항을 더 구체적으로 적어 다시 시도해 주세요.');
             }
         }
         if (!replacement) throw new Error('선택 부분 재번역 결과가 비어 있습니다.');

@@ -105,8 +105,8 @@ const flashHongjinPrompt = core.buildOutputPrompt(segmented, {
     developerCompressedPromptEnabled: false,
     developerHongjinProfanity: 'natural',
 }, '', resolved);
-check(flashHongjinPrompt.includes('RESTORED 0.5.84 KIM HONG-JIN AUTHORING PATH'), 'Mad+Hongjin restores the proven 0.5.84 authoring path');
-check(flashHongjinPrompt.includes('DEEPSEEK V4.1 FLASH — KIM HONG-JIN DIALOGUE VOICE PASS'), 'restored path executes the dedicated Hongjin voice pass');
+check(flashHongjinPrompt.includes('TARGET CHARACTER AUTHORING PATH'), 'Mad+Hongjin restores the proven 0.5.84 authoring path');
+check(flashHongjinPrompt.includes('DEEPSEEK V4.1 FLASH — CURRENT TARGET CHARACTER DIALOGUE VOICE PASS'), 'restored path executes the dedicated Hongjin voice pass');
 check(!/generate three|three different kim hong-jin utterances/iu.test(flashHongjinPrompt), 'restored path does not request hidden multi-candidate generation');
 assert.equal(core.repairCanonicalKoreanNameSuffixes('담은이의 후드와 담은이를 잡았다.', ['담은']), '담은의 후드와 담은을 잡았다.');
 assert.equal(core.repairCanonicalKoreanVocatives('"담은이아!" 그가 외쳤다.', { type: 'dialogue_candidate', text: '"Dam-eun!" he shouted.' }, ['담은']), '"담은아!" 그가 외쳤다.');

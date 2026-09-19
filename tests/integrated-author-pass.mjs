@@ -25,7 +25,7 @@ const prompt = buildMadKoreanIntegratedRewritePrompt({
 
 assert.match(prompt, /SOURCELESS INTEGRATED AUTHOR PASS/);
 assert.match(prompt, /Korean fact draft/);
-assert.match(prompt, /Kim Hong-jin authorship contract below is mandatory/);
+assert.match(prompt, /CURRENT TARGET CHARACTER authorship contract below is mandatory/i);
 assert.match(prompt, /Most compatible target rows MUST visibly carry/);
 assert.match(prompt, /Never compensate for bland target dialogue by making other_dialogue rougher/);
 assert.match(prompt, /fused or damaged words, duplicated particles/);
@@ -33,7 +33,7 @@ assert.match(prompt, /"scope":"target_dialogue"/);
 assert.doesNotMatch(prompt, /The medical tent flap/);
 
 const indexSource = await import('node:fs').then(fs => fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8'));
-assert.match(indexSource, /skipped: 'mixed-primary-authoring'/);
-assert.match(indexSource, /A second integrated rewrite/);
+assert.match(indexSource, /skipped: 'primary-authoring-single-pass'/);
+assert.match(indexSource, /primary Mad-Korean request is already the final authoring pass/i);
 
 console.log('PASS: integrated author prompt remains available for Mad-only mode; Mad+Hongjin keeps its faster mixed primary batches with row-level speaker firewalls.');

@@ -28,6 +28,7 @@ const env={settings, document:{querySelector:()=>button}, sanitizeDebugValue, pr
 const logs=Function(...Object.keys(env),'let lastDebugDiagnostic=null;\n'+slice('function storeDebugDiagnostic(', 'function createDebugDiagnostic(')+ '\nreturn {recordProtectedRecovery,finishProtectedRecovery,clear:()=>{lastDebugDiagnostic=null;},latest:()=>lastDebugDiagnostic,replace:storeDebugDiagnostic};')(...Object.values(env));
 let calls=0, action=()=>{translations.set('s1',`${a} opened ${b}`);now+=4900;};
 const deps={...env,...logs,findProtectedTokenIntegrityProblems,repairProtectedTokenIntegrityLocally,buildProtectedTokenRepairPrompt:()=>{},isAbort:e=>e.name==='AbortError',
+    madKoreanExclusiveMode:()=>false,
     repairSegmentsByOutputScope:async opts=>{calls++;assert.equal(opts.stage,'protected-token-repair');await action();}};
 const repair=Function(...Object.keys(deps),slice('async function repairProtectedTokenIntegrity(', 'function normalizedNumberTokens(')+'\nreturn repairProtectedTokenIntegrity;')(...Object.values(deps));
 await repair(segmented,translations,{stage:'output-retranslation'});
@@ -91,6 +92,14 @@ const ambiguous = new Map([['n1', '담은이 담은을 따라왔다.'], ['n2', `
 const ambiguousResult = repairProtectedTokenIntegrityLocally(localSegmented, ambiguous);
 assert.equal(ambiguousResult.restoredNameTokens,0);
 assert.equal(ambiguousResult.remaining.length,1);
+
+// Mad-Korean single-pass mode resolves even ambiguous/missing name and
+// structure markers locally instead of issuing a repair request.
+const forced = new Map([['s1', '알렉스가 문을 열었다.']]);
+const forcedResult = repairProtectedTokenIntegrityLocally(segmented, forced, {force:true});
+assert.deepEqual(forcedResult.remaining, []);
+assert.match(forced.get('s1'), /@@VERBA_DEEP_NAME_0000@@/);
+assert.match(forced.get('s1'), /@@VERBA_DEEP_0000@@/);
 // Diagnostic failures cannot alter the existing recovery path.
 const broken={...deps,recordProtectedRecovery:logs.recordProtectedRecovery,protectedRecoverySnapshot:()=>{throw Error('diagnostic failed');}};
 const badLogs=Function(...Object.keys(broken),'let lastDebugDiagnostic=null;\n'+slice('function recordProtectedRecovery(', 'function createDebugDiagnostic(')+'\nreturn recordProtectedRecovery;')(...Object.values(broken));
