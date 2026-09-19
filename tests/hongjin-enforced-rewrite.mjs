@@ -42,8 +42,9 @@ assert.equal(highHelpers.hongjinSceneVoiceFailure(sceneRows, new Map([
 
 assert.doesNotMatch(index, /throw new Error\(`김홍진 보이스 강제 재작성 실패:/u);
 
-assert.match(index, /needsHongjinAttribution/);
-assert.match(index, /dialogueSegments\.some\(segment => scopes\[segment\.id\] !== 'target_dialogue'\)/);
+assert.doesNotMatch(index, /needsHongjinAttribution/);
+assert.match(index, /localMadHongjinIdentityNameLocks/);
+assert.match(index, /const needsSpeakerIsolation = Boolean\(\s*!madKoreanExclusiveMode\(\)/s);
 assert.match(index, /hongjin-voice-scene-retry/);
 assert.match(index, /function hongjinSceneVoiceFailure\(/);
 assert.doesNotMatch(index, /hongjin-voice-enforced-retry-/);
@@ -56,4 +57,4 @@ const voiceGuard = body.lastIndexOf('if (!madKoreanExclusiveMode())', body.index
 assert.ok(voiceGuard > body.indexOf('await runExperimentalQualityAudit('));
 assert.ok(body.indexOf('await runHongjinVoiceRewrite(') > voiceGuard);
 
-console.log('PASS: ambiguous speakers trigger attribution; legacy Hongjin rewrite remains available but is skipped after Mad Korean source-aware audit.');
+console.log('PASS: Mad+Hongjin uses local identity/speaker routing without an attribution request; legacy standalone Hongjin rewrite remains available.');

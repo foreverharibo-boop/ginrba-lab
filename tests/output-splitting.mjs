@@ -47,14 +47,14 @@ assert.equal(localContext.length,520*3+2);
 for(const count of [1,2,3])for(const mode of ['ordinary','compressed','extreme']){
  Object.assign(settings,{developerOutputSplitCount:count,developerCompressedPromptEnabled:mode==='compressed',developerExtremeCompressedPromptEnabled:mode==='extreme'});
  requests=[];const map=await route(segmented,{}, {speakerIdentity:identity,oneTimeInstruction:'ONE_TIME'});
- assert.equal(requests.length,1);assert.equal(map.size,segmented.segments.length);
+ assert.equal(requests.length,count);assert.equal(map.size,segmented.segments.length);
  assert.deepEqual(requests.flatMap(r=>r.segments),segmented.segments);
  for(const row of requests){
   // Compare the actual transmitted prompt with the original builder. No flavor,
   // register, profanity, one-time request or compression policy is rewritten.
   const tokens=segmented.nameTokens.filter(t=>row.segments.some(s=>s.text.includes(t.token)));
-  assert.equal(row.prompt,core.buildOutputPrompt({...segmented,segments:row.segments,nameTokens:tokens},settings,'ONE_TIME',identity,null));
-  assert.equal(row.options.splitRequest===true,false);
+  assert.equal(row.prompt,core.buildOutputPrompt({...segmented,segments:row.segments,nameTokens:tokens},settings,'ONE_TIME',identity,null,{}));
+  assert.equal(row.options.splitRequest===true,count>1);
  }
 }
 // General split setting remains effective with developer mode OFF.
@@ -79,22 +79,17 @@ for(const row of requests){
   assert.equal(scope,expected);
  }
 }
-// Mad Korean + Hongjin also isolates narration from confirmed TARGET
-// dialogue so DeepSeek Flash does not juggle both contracts in one response.
+// Mad Korean + Hongjin restores the 0.5.84 mixed-scene primary pass while
+// carrying row-level scope labels as a hard voice firewall.
 Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFlavorEnabled:true,
  developerOutputSplitCount:1,dialoguePrompt:'',otherDialoguePrompt:''});
 requests=[];await route(segmented,scopes,{speakerIdentity:identity});
-assert.ok(requests.length>=2&&requests.length<=4);
-assert.ok(requests.some(row=>row.options.stage.includes(':narration')));
-assert.ok(requests.some(row=>row.options.stage.includes(':target_dialogue')));
+assert.equal(requests.length,1);
 for(const row of requests){
- assert.match(row.prompt,/MAD FLASH V2 — SINGLE-PASS KOREAN COMPOSITION/);
- const scope=['narration','target_dialogue','other_dialogue','tagged_content'].find(value=>row.options.stage.includes(`:${value}`));
- assert.equal(row.options.parallelRequest,true);
- for(const s of row.segments){
-  const expected=s.type==='tagged_content'?'tagged_content':s.type==='dialogue_candidate'?scopes[s.id]:'narration';
-  assert.equal(scope,expected);
- }
+ assert.match(row.prompt,/speaker_scope is an absolute row-level firewall/);
+ assert.match(row.prompt,/"speaker_scope":"target_dialogue"/);
+ assert.match(row.prompt,/"speaker_scope":"other_dialogue"/);
+ assert.deepEqual(row.segments,segmented.segments);
 }
 // Real whole-output pipeline: planning and final verification run once for the
 // whole message, not once per chunk; only the main translation is divided.
@@ -102,6 +97,7 @@ Object.assign(settings,{developerMadKoreanOutputEnabled:true,developerHongjinFla
 let planned=0,classified=0,audited=0,integratedRewritten=0;
 const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  normalizedCharacterNameLocks:()=>[{source:'Hong-jin',target:'홍진'}],
+ localMadHongjinIdentityNameLocks:()=>[],
  planRepeatedRoleTermLocks:async s=>{planned++;assert.equal(s.segments.length,segmented.segments.length);return [];},
  classifyOutputDialogueSpeakers:async()=>{classified++;return scopes;},requestScopedOutputTranslations:route,
  repairRepeatedRoleTermConsistency:async()=>{},repairProtectedTokenIntegrity:async()=>{},
@@ -113,7 +109,7 @@ const fullEnv={...env, ...core, minimalOutputEnabled,translateMinimalOutput,
  buildSourceMap:(_s,_t,result)=>[{start:0,end:result.length}],console};
 const full=Function(...Object.keys(fullEnv),between('function normalizeTaggedOutputTranslations(', 'async function repairSegmentsByOutputScope(')+between('async function translateOutputText(', 'function inputIdentitySpellingContext(')+'\nreturn translateOutputText;')(...Object.values(fullEnv));
 requests=[];const fullResult=await full(source,{speakerIdentity:identity});
-assert.ok(requests.length>=3);assert.equal(planned,1);assert.equal(classified,1);assert.equal(integratedRewritten,1);assert.equal(audited,1);
+assert.equal(requests.length,3);assert.equal(planned,1);assert.equal(classified,1);assert.equal(integratedRewritten,1);assert.equal(audited,1);
 assert.match(fullResult.translation,/홍진/);assert.match(fullResult.translation,/`CODE_UNCHANGED`/);assert.match(fullResult.translation,/<Info_panel>/);
 // Minimal uses ONLY its own prompt regardless of the independent split setting.
 for(const count of [1,2,3]){

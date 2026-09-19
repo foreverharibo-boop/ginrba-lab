@@ -53,7 +53,7 @@ import {
 } from './core.js';
 
 const EXTENSION_KEY = 'verba-deep';
-const EXTENSION_VERSION = '0.5.118';
+const EXTENSION_VERSION = '0.5.119';
 const DEVELOPER_ACCESS_CODE = '130918';
 const DEVELOPER_ACCESS_FINGERPRINT = `verba-deep-dev-${hashText(DEVELOPER_ACCESS_CODE)}`;
 const TOUCH_SELECTION_QUIET_MS = 2000;
@@ -4019,18 +4019,11 @@ async function classifyOutputDialogueSpeakers(segmented, speakerIdentity, option
         localScopes[segment.id] === 'target_dialogue' ? 'target_dialogue' : 'other_dialogue',
     ]));
 
-    // Mad+Hongjin cannot rely only on local spelling matches: a Korean display
-    // name such as 김홍진 may appear romanized as Hong-jin in the source. Run
-    // the classifier whenever any dialogue remains unconfirmed so the voice
-    // pass cannot silently receive zero candidates.
-    const hasLocallyConfirmedTarget = dialogueSegments.some(
-        segment => localScopes[segment.id] === 'target_dialogue',
-    );
-    const needsHongjinAttribution = madKoreanExclusiveMode()
-        && settings.developerHongjinFlavorEnabled === true
-        && !hasLocallyConfirmedTarget
-        && dialogueSegments.some(segment => scopes[segment.id] !== 'target_dialogue');
-    const needsSpeakerIsolation = needsHongjinAttribution || Boolean(
+    // Mad Korean + Hong-jin uses the local scene resolver and sends its
+    // per-row scope labels inside the two mixed primary requests. Do not add a
+    // separate classifier request: it both delayed Flash and detached dialogue
+    // from the scene that gives the voice its rhythm.
+    const needsSpeakerIsolation = Boolean(
         !madKoreanExclusiveMode() && (
         (settings.dialoguePromptEnabled !== false && String(settings.dialoguePrompt || '').trim())
         || (settings.otherDialoguePromptEnabled !== false && String(settings.otherDialoguePrompt || '').trim())
@@ -4220,12 +4213,11 @@ function scopedSourceContext(segmented, targetSegments) {
 async function requestScopedOutputTranslations(segmented, speakerScopes, options = {}) {
     // Split only the initial translation request. Existing speaker isolation,
     // prompts, full-message planning, repair and quality checks remain intact.
-    // Mad Korean + Hong-jin already isolates narration/target/other/tagged
-    // scopes below. Applying the user's outer 2-way split as well multiplies
-    // the same work without adding context or quality.
-    const consolidatedMadHongjin = madKoreanExclusiveMode()
-        && settings.developerHongjinFlavorEnabled === true;
-    const splitCount = consolidatedMadHongjin ? 1 : outputSplitCount(settings);
+    // Mad Korean + Hong-jin deliberately keeps narration and every speaker in
+    // the same contiguous scene batch. speaker_scope travels with each row, so
+    // Flash gets the old strong scene context without leaking the TARGET voice.
+    // Therefore the user's 2-way setting once again means two primary calls.
+    const splitCount = outputSplitCount(settings);
     if (splitCount > 1 && !options.splitBatchCount) {
         return runOutputBatches(segmented, splitCount, options, (segments, batchOptions) =>
             requestScopedOutputTranslations({
@@ -4236,10 +4228,7 @@ async function requestScopedOutputTranslations(segmented, speakerScopes, options
     }
     const translations = new Map();
     const groups = segmentsGroupedByOutputScope(segmented.segments, speakerScopes);
-    const madHongjinScopeIsolation = madKoreanExclusiveMode()
-        && settings.developerHongjinFlavorEnabled === true
-        && groups.has('target_dialogue');
-    const strictIsolationNeeded = madHongjinScopeIsolation || Boolean(
+    const strictIsolationNeeded = Boolean(
         !madKoreanExclusiveMode() && (
         (settings.dialoguePromptEnabled !== false && String(settings.dialoguePrompt || '').trim())
         || (settings.otherDialoguePromptEnabled !== false && String(settings.otherDialoguePrompt || '').trim())
@@ -4819,6 +4808,12 @@ async function runMadNarrationMicroAudit({
         translations,
         speakerScopes,
     );
+    // In the combined Mad Korean + Hong-jin path the primary mixed prompt is
+    // the author pass. Keep deterministic repairs, but do not turn a clean
+    // two-request translation into a third AI round merely for stylistic QA.
+    if (settings.developerHongjinFlavorEnabled === true) {
+        return { checked: 0, changed: localChanged, requested: 0, skipped: 'mixed-primary-author-pass' };
+    }
     const candidates = madNarrationLocalAuditCandidates(
         segmented,
         translations,
@@ -4945,12 +4940,12 @@ async function runMadKoreanIntegratedRewrite({
         return { checked: 0, changed: 0 };
     }
 
-    // Mad Korean + Hong-jin is already authored in four hard-isolated scopes
-    // during the primary pass. A second mixed-scope rewrite was slower and let
-    // target profanity leak into USER/NPC dialogue, so never recombine those
-    // scopes. Mad Korean without the character flavor may still use this pass.
+    // Mad Korean + Hong-jin is already authored in the primary mixed-scene
+    // batches with a row-level speaker firewall. A second integrated rewrite
+    // adds latency and can blur those speaker boundaries, so skip it here.
+    // Mad Korean without the character flavor may still use this pass.
     if (settings.developerHongjinFlavorEnabled === true) {
-        return { checked: 0, changed: 0, skipped: 'scope-isolated-primary-pass' };
+        return { checked: 0, changed: 0, skipped: 'mixed-primary-authoring' };
     }
 
     const candidates = (segmented.segments || []).map(segment => ({
@@ -5189,6 +5184,39 @@ function mergedNameLocks(explicitLocks = [], inferredLocks = []) {
     return merged;
 }
 
+function localMadHongjinIdentityNameLocks(source, speakerIdentity = {}) {
+    if (!(madKoreanExclusiveMode() && settings.developerHongjinFlavorEnabled === true)) return [];
+    const text = String(source || '');
+    const characterName = String(
+        speakerIdentity.characterName ?? speakerIdentity.sourceCharacterName ?? '',
+    ).trim();
+    const userName = String(
+        speakerIdentity.userName ?? speakerIdentity.sourceUserName ?? '',
+    ).trim();
+    const locks = [];
+    const addMatches = (pattern, targetForMatch) => {
+        for (const match of text.matchAll(pattern)) {
+            const sourceName = String(match[0] || '').trim();
+            const target = String(targetForMatch(sourceName) || '').trim();
+            if (sourceName && target) locks.push({ source: sourceName, target });
+        }
+    };
+
+    // This flavor is explicitly Kim Hong-jin-specific. Resolve its common
+    // Latin spellings locally instead of spending an AI call on a two-name
+    // matching task. Full-name source forms remain full names; given-name
+    // forms remain given names.
+    if (/(?:김)?홍진/u.test(characterName)) {
+        addMatches(/(?<![A-Za-z])(?:Kim[\s-]+)?Hong[\s-]?jin(?![A-Za-z])/giu, sourceName => (
+            /^Kim[\s-]+/iu.test(sourceName) ? '김홍진' : '홍진'
+        ));
+    }
+    if (/담은/u.test(userName)) {
+        addMatches(/(?<![A-Za-z])Dam[\s-]?eun(?![A-Za-z])/giu, () => '담은');
+    }
+    return mergedNameLocks([], locks);
+}
+
 async function inferredPrimaryIdentityNameLocks(source, speakerIdentity = {}, options = {}) {
     const explicitLocks = Array.isArray(speakerIdentity.nameLocks) ? speakerIdentity.nameLocks : [];
     const candidates = primaryIdentityNameCandidates(source, speakerIdentity, explicitLocks);
@@ -5257,7 +5285,12 @@ async function translateOutputText(source, options = {}) {
     const inferIdentityNames = typeof inferredPrimaryIdentityNameLocks === 'function'
         ? inferredPrimaryIdentityNameLocks
         : async () => [];
-    const inferredNameLocks = await inferIdentityNames(source, initialSpeakerIdentity, options);
+    const localMadNameLocks = localMadHongjinIdentityNameLocks(source, initialSpeakerIdentity);
+    const inferredNameLocks = localMadNameLocks.length
+        ? localMadNameLocks
+        : madKoreanExclusiveMode() && settings.developerHongjinFlavorEnabled === true
+            ? []
+            : await inferIdentityNames(source, initialSpeakerIdentity, options);
     const characterNameLocks = inferredNameLocks.length
         ? mergedNameLocks(explicitNameLocks, inferredNameLocks)
         : explicitNameLocks;

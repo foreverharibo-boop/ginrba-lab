@@ -10,6 +10,7 @@ assert.ok(start >= 0 && end > start);
 let requests = 0;
 let lastCandidates = [];
 const env = {
+    settings: { developerHongjinFlavorEnabled: false },
     canonicalKoreanIdentityNames: () => ['김홍진', '홍진', '담은'],
     outputScopeForSegment: segment => segment.outputScope || 'narration',
     escapeRegularExpression: value => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
@@ -60,6 +61,23 @@ const result = await helpers.runMadNarrationMicroAudit({
 });
 assert.equal(result.requested, 1);
 assert.equal(result.changed, 3);
+assert.equal(requests, 1);
+
+// Combined Mad Korean + Hongjin keeps deterministic fixes but never adds a
+// third AI request after the mixed primary author pass.
+env.settings.developerHongjinFlavorEnabled = true;
+const hongjinDeterministic = new Map([
+    ['seg_0000', '깊고 갈리는 피로가 남았다.'],
+]);
+const hongjinResult = await helpers.runMadNarrationMicroAudit({
+    segmented: { segments: [segments[0]] },
+    translations: hongjinDeterministic,
+    speakerScopes: {},
+    speakerIdentity: identity,
+    options: {},
+});
+assert.equal(hongjinResult.requested, 0);
+assert.equal(hongjinResult.changed, 1);
 assert.equal(requests, 1);
 assert.equal(lastCandidates.length, 1);
 assert.equal(translations.get('seg_0000'), '무겁고 지독한 피로가 남았다.');

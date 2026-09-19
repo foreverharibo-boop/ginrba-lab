@@ -39,6 +39,16 @@ assert.match(prompt, /ORDINARY CONFLICT/);
 assert.match(prompt, /ACTIVE DANGER/);
 assert.match(prompt, /CONCEALED CARE/);
 assert.ok(prompt.length >= 12000);
+assert.match(prompt, /Do NOT impose an artificial one-use cap/);
+assert.match(prompt, /identical curse roots and identical placement in adjacent TARGET utterances/);
+
+const mixedPrompt = core.buildOutputPrompt(
+    { segments, nameTokens: [] }, settings, '', identity, null,
+    { seg_0000: 'target_dialogue' },
+);
+assert.match(mixedPrompt, /do not impose a numeric one-use cap/i);
+assert.match(mixedPrompt, /never repeat the same curse root in adjacent TARGET utterances/i);
+assert.match(mixedPrompt, /speaker_scope is an absolute row-level firewall/);
 
 for (const scope of ['narration', 'other_dialogue', 'tagged_content']) {
     assert.doesNotMatch(build(scope), /KIM HONG-JIN VOICE — PRIMARY WRITING REQUIREMENT/);

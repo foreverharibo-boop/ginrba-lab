@@ -33,7 +33,7 @@ assert.match(prompt, /"scope":"target_dialogue"/);
 assert.doesNotMatch(prompt, /The medical tent flap/);
 
 const indexSource = await import('node:fs').then(fs => fs.readFileSync(new URL('../index.js', import.meta.url), 'utf8'));
-assert.match(indexSource, /skipped: 'scope-isolated-primary-pass'/);
-assert.match(indexSource, /A second mixed-scope rewrite was slower and let/);
+assert.match(indexSource, /skipped: 'mixed-primary-authoring'/);
+assert.match(indexSource, /A second integrated rewrite/);
 
-console.log('PASS: integrated author prompt remains available for Mad-only mode; Mad+Hongjin keeps its faster hard-isolated primary scopes.');
+console.log('PASS: integrated author prompt remains available for Mad-only mode; Mad+Hongjin keeps its faster mixed primary batches with row-level speaker firewalls.');
